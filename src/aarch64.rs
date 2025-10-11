@@ -9,6 +9,24 @@ const CHUNK: usize = 64;
 const PREFETCH_DISTANCE: usize = CHUNK * 2;
 const SLASH_SENTINEL: u8 = 0xFF;
 
+#[inline(always)]
+fn check_cross_page(ptr: *const u8, step: usize) -> bool {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        // Check if reading 'step' bytes from 'ptr' would cross a page boundary
+        // Page size is typically 4096 bytes on aarch64 Linux and macOS
+        const PAGE_SIZE: usize = 4096;
+        ((ptr as usize & (PAGE_SIZE - 1)) + step) > PAGE_SIZE
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        // On other platforms, always use the safe path with temporary buffer
+        // to avoid potential page faults
+        true
+    }
+}
+
 #[inline]
 pub fn escape_neon(bytes: &[u8], output: &mut Vec<u8>) {
     let n = bytes.len();
@@ -25,12 +43,24 @@ pub fn escape_neon(bytes: &[u8], output: &mut Vec<u8>) {
         while i + CHUNK <= n {
             let ptr = bytes.as_ptr().add(i);
 
-            core::arch::asm!(
-                "prfm pldl1keep, [{0}]",
-                in(reg) ptr.add(PREFETCH_DISTANCE),
-            );
+            // Only prefetch if we won't go past the end
+            if i + CHUNK + PREFETCH_DISTANCE <= n {
+                core::arch::asm!(
+                    "prfm pldl1keep, [{0}]",
+                    in(reg) ptr.add(PREFETCH_DISTANCE),
+                );
+            }
 
-            let quad = vld1q_u8_x4(ptr);
+            // Use temporary buffer if reading would cross page boundary
+            let quad = if i + CHUNK == n || !check_cross_page(ptr, CHUNK) {
+                // Safe to read directly
+                vld1q_u8_x4(ptr)
+            } else {
+                // Need to use temporary buffer
+                let mut temp = [0u8; CHUNK];
+                std::ptr::copy_nonoverlapping(ptr, temp.as_mut_ptr(), CHUNK);
+                vld1q_u8_x4(temp.as_ptr())
+            };
 
             let a = quad.0;
             let b = quad.1;

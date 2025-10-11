@@ -30,6 +30,24 @@ fn sub(a: *const u8, b: *const u8) -> usize {
     (a as usize) - (b as usize)
 }
 
+#[inline(always)]
+fn check_cross_page(ptr: *const u8, step: usize) -> bool {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        // Check if reading 'step' bytes from 'ptr' would cross a page boundary
+        // Page size is typically 4096 bytes on x86_64 Linux and macOS
+        const PAGE_SIZE: usize = 4096;
+        ((ptr as usize & (PAGE_SIZE - 1)) + step) > PAGE_SIZE
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        // On other platforms, always use the safe path with temporary buffer
+        // to avoid potential page faults
+        true
+    }
+}
+
 #[target_feature(enable = "avx512f", enable = "avx512bw")]
 #[inline]
 pub unsafe fn escape_avx512(bytes: &[u8], result: &mut Vec<u8>) {
@@ -199,14 +217,29 @@ pub unsafe fn escape_avx512(bytes: &[u8], result: &mut Vec<u8>) {
 
     // Handle tail
     if ptr < end_ptr {
-        let d = M512_VECTOR_SIZE - sub(end_ptr, ptr);
-        let a = _mm512_loadu_si512(ptr.sub(d) as *const __m512i);
+        let remaining = sub(end_ptr, ptr);
+        let d = M512_VECTOR_SIZE - remaining;
+
+        // Use temporary buffer if reading would cross page boundary
+        let a = if check_cross_page(ptr.sub(d), M512_VECTOR_SIZE) {
+            let mut temp = [0u8; M512_VECTOR_SIZE];
+            // Copy remaining bytes to the beginning of temp buffer
+            std::ptr::copy_nonoverlapping(ptr, temp.as_mut_ptr(), remaining);
+            _mm512_loadu_si512(temp.as_ptr() as *const __m512i)
+        } else {
+            _mm512_loadu_si512(ptr.sub(d) as *const __m512i)
+        };
 
         let quote_mask = _mm512_cmpeq_epi8_mask(a, v_b);
         let slash_mask = _mm512_cmpeq_epi8_mask(a, v_c);
         let ctrl_mask = _mm512_cmplt_epu8_mask(a, v_ctrl_limit);
 
-        let mut mask = ((quote_mask | slash_mask | ctrl_mask) as u64).wrapping_shr(d as u32);
+        let mut mask = if check_cross_page(ptr.sub(d), M512_VECTOR_SIZE) {
+            // When using temp buffer, only check the valid bytes
+            (quote_mask | slash_mask | ctrl_mask) as u64 & ((1u64 << remaining) - 1)
+        } else {
+            ((quote_mask | slash_mask | ctrl_mask) as u64).wrapping_shr(d as u32)
+        };
 
         if mask != 0 {
             let at = sub(ptr, start_ptr);
@@ -415,15 +448,31 @@ pub unsafe fn escape_avx2(bytes: &[u8], result: &mut Vec<u8>) {
 
     // Handle tail
     if ptr < end_ptr {
-        let d = M256_VECTOR_SIZE - sub(end_ptr, ptr);
-        let mut mask = ({
-            let a = _mm256_loadu_si256(ptr.sub(d) as *const __m256i);
-            _mm256_movemask_epi8(_mm256_or_si256(
+        let remaining = sub(end_ptr, ptr);
+        let d = M256_VECTOR_SIZE - remaining;
+
+        // Use temporary buffer if reading would cross page boundary
+        let a = if check_cross_page(ptr.sub(d), M256_VECTOR_SIZE) {
+            let mut temp = [0u8; M256_VECTOR_SIZE];
+            // Copy remaining bytes to the beginning of temp buffer
+            std::ptr::copy_nonoverlapping(ptr, temp.as_mut_ptr(), remaining);
+            _mm256_loadu_si256(temp.as_ptr() as *const __m256i)
+        } else {
+            _mm256_loadu_si256(ptr.sub(d) as *const __m256i)
+        };
+
+        let mut mask = if check_cross_page(ptr.sub(d), M256_VECTOR_SIZE) {
+            // When using temp buffer, only check the valid bytes
+            (_mm256_movemask_epi8(_mm256_or_si256(
                 _mm256_or_si256(_mm256_cmpeq_epi8(a, v_b), _mm256_cmpeq_epi8(a, v_c)),
                 _mm256_cmpgt_epi8(_mm256_add_epi8(a, v_translation_a), v_below_a),
-            ))
-        } as u32)
-            .wrapping_shr(d as u32);
+            )) as u32) & ((1u32 << remaining) - 1)
+        } else {
+            (_mm256_movemask_epi8(_mm256_or_si256(
+                _mm256_or_si256(_mm256_cmpeq_epi8(a, v_b), _mm256_cmpeq_epi8(a, v_c)),
+                _mm256_cmpgt_epi8(_mm256_add_epi8(a, v_translation_a), v_below_a),
+            )) as u32).wrapping_shr(d as u32)
+        };
 
         if mask != 0 {
             let at = sub(ptr, start_ptr);
@@ -544,15 +593,31 @@ pub unsafe fn escape_sse2(bytes: &[u8], result: &mut Vec<u8>) {
 
     // Handle tail
     if ptr < end_ptr {
-        let d = M128_VECTOR_SIZE - sub(end_ptr, ptr);
-        let mut mask = ({
-            let a = _mm_loadu_si128(ptr.sub(d) as *const __m128i);
-            _mm_movemask_epi8(_mm_or_si128(
+        let remaining = sub(end_ptr, ptr);
+        let d = M128_VECTOR_SIZE - remaining;
+
+        // Use temporary buffer if reading would cross page boundary
+        let a = if check_cross_page(ptr.sub(d), M128_VECTOR_SIZE) {
+            let mut temp = [0u8; M128_VECTOR_SIZE];
+            // Copy remaining bytes to the beginning of temp buffer
+            std::ptr::copy_nonoverlapping(ptr, temp.as_mut_ptr(), remaining);
+            _mm_loadu_si128(temp.as_ptr() as *const __m128i)
+        } else {
+            _mm_loadu_si128(ptr.sub(d) as *const __m128i)
+        };
+
+        let mut mask = if check_cross_page(ptr.sub(d), M128_VECTOR_SIZE) {
+            // When using temp buffer, only check the valid bytes
+            (_mm_movemask_epi8(_mm_or_si128(
                 _mm_or_si128(_mm_cmpeq_epi8(a, v_b), _mm_cmpeq_epi8(a, v_c)),
                 _mm_cmpgt_epi8(_mm_add_epi8(a, v_translation_a), v_below_a),
-            ))
-        } as u16)
-            .wrapping_shr(d as u32);
+            )) as u16) & ((1u16 << remaining) - 1)
+        } else {
+            (_mm_movemask_epi8(_mm_or_si128(
+                _mm_or_si128(_mm_cmpeq_epi8(a, v_b), _mm_cmpeq_epi8(a, v_c)),
+                _mm_cmpgt_epi8(_mm_add_epi8(a, v_translation_a), v_below_a),
+            )) as u16).wrapping_shr(d as u32)
+        };
 
         if mask != 0 {
             let at = sub(ptr, start_ptr);
