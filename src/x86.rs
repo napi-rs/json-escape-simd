@@ -9,6 +9,7 @@ use std::arch::x86_64::{
 };
 
 use crate::generic::{ESCAPE, ESCAPE_TABLE, HEX_BYTES, UU};
+use crate::util::check_cross_page;
 
 // Constants for control character detection using signed comparison trick
 const TRANSLATION_A: i8 = i8::MAX - 31i8;
@@ -28,24 +29,6 @@ const PREFETCH_DISTANCE_AVX512: usize = 512; // Prefetch 512 bytes ahead for AVX
 fn sub(a: *const u8, b: *const u8) -> usize {
     debug_assert!(b <= a);
     (a as usize) - (b as usize)
-}
-
-#[inline(always)]
-fn check_cross_page(ptr: *const u8, step: usize) -> bool {
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        // Check if reading 'step' bytes from 'ptr' would cross a page boundary
-        // Page size is typically 4096 bytes on x86_64 Linux and macOS
-        const PAGE_SIZE: usize = 4096;
-        ((ptr as usize & (PAGE_SIZE - 1)) + step) > PAGE_SIZE
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-    {
-        // On other platforms, always use the safe path with temporary buffer
-        // to avoid potential page faults
-        true
-    }
 }
 
 #[target_feature(enable = "avx512f", enable = "avx512bw")]
@@ -479,12 +462,14 @@ pub unsafe fn escape_avx2(bytes: &[u8], result: &mut Vec<u8>) {
             (_mm256_movemask_epi8(_mm256_or_si256(
                 _mm256_or_si256(_mm256_cmpeq_epi8(a, v_b), _mm256_cmpeq_epi8(a, v_c)),
                 _mm256_cmpgt_epi8(_mm256_add_epi8(a, v_translation_a), v_below_a),
-            )) as u32) & ((1u32 << remaining) - 1)
+            )) as u32)
+                & ((1u32 << remaining) - 1)
         } else {
             (_mm256_movemask_epi8(_mm256_or_si256(
                 _mm256_or_si256(_mm256_cmpeq_epi8(a, v_b), _mm256_cmpeq_epi8(a, v_c)),
                 _mm256_cmpgt_epi8(_mm256_add_epi8(a, v_translation_a), v_below_a),
-            )) as u32).wrapping_shr(d as u32)
+            )) as u32)
+                .wrapping_shr(d as u32)
         };
 
         if mask != 0 {
@@ -624,12 +609,14 @@ pub unsafe fn escape_sse2(bytes: &[u8], result: &mut Vec<u8>) {
             (_mm_movemask_epi8(_mm_or_si128(
                 _mm_or_si128(_mm_cmpeq_epi8(a, v_b), _mm_cmpeq_epi8(a, v_c)),
                 _mm_cmpgt_epi8(_mm_add_epi8(a, v_translation_a), v_below_a),
-            )) as u16) & ((1u16 << remaining) - 1)
+            )) as u16)
+                & ((1u16 << remaining) - 1)
         } else {
             (_mm_movemask_epi8(_mm_or_si128(
                 _mm_or_si128(_mm_cmpeq_epi8(a, v_b), _mm_cmpeq_epi8(a, v_c)),
                 _mm_cmpgt_epi8(_mm_add_epi8(a, v_translation_a), v_below_a),
-            )) as u16).wrapping_shr(d as u32)
+            )) as u16)
+                .wrapping_shr(d as u32)
         };
 
         if mask != 0 {
@@ -674,25 +661,45 @@ unsafe fn process_mask_avx(
     let ptr = ptr.add(offset);
     let at = sub(ptr, start_ptr);
 
+    // Reserve space upfront to reduce allocations
+    // Worst case: each byte needs 6 bytes (e.g., \u001f)
+    let max_needed = 32 * 6;
+    result.reserve(max_needed);
+
     // Process mask bits using bit manipulation
     let mut remaining = mask as u32;
     while remaining != 0 {
         let cur = remaining.trailing_zeros() as usize;
-        let c = *ptr.add(cur);
-        let escape_byte = ESCAPE[c as usize];
-        debug_assert!(escape_byte != 0);
-
         let i = at + cur;
-        // Copy unescaped portion if needed
-        if *start < i {
-            result.extend_from_slice(&bytes[*start..i]);
-        }
-        // Write escape sequence
-        write_escape(result, escape_byte, c);
-        *start = i + 1;
 
-        // Clear the lowest set bit
-        remaining &= remaining - 1;
+        // Copy unescaped portion using copy_nonoverlapping
+        if *start < i {
+            let src = bytes.as_ptr().add(*start);
+            let len = i - *start;
+            let dst = result.as_mut_ptr().add(result.len());
+            std::ptr::copy_nonoverlapping(src, dst, len);
+            result.set_len(result.len() + len);
+        }
+
+        // Handle continuous escapes starting from current position
+        let escape_src = ptr.add(cur);
+        let mut dst = result.as_mut_ptr().add(result.len());
+        let new_src = escape_continuous(escape_src, &mut dst, bytes, start_ptr);
+        let bytes_written = sub(dst, result.as_mut_ptr().add(result.len()));
+        result.set_len(result.len() + bytes_written);
+
+        // Update start position
+        let chars_processed = sub(new_src, escape_src);
+        *start = i + chars_processed;
+
+        // Clear processed bits from mask
+        // We need to clear all bits up to and including the last processed character
+        let bits_to_clear = cur + chars_processed;
+        if bits_to_clear < 32 {
+            remaining &= !((1u32 << bits_to_clear) - 1);
+        } else {
+            remaining = 0;
+        }
     }
 }
 
@@ -709,26 +716,100 @@ unsafe fn process_mask_avx512(
     let ptr = ptr.add(offset);
     let at = sub(ptr, start_ptr);
 
+    // Reserve space upfront to reduce allocations
+    // Worst case: each byte needs 6 bytes (e.g., \u001f)
+    let max_needed = 64 * 6;
+    result.reserve(max_needed);
+
     // Process mask bits using bit manipulation
     let mut remaining = mask;
     while remaining != 0 {
         let cur = remaining.trailing_zeros() as usize;
-        let c = *ptr.add(cur);
-        let escape_byte = ESCAPE[c as usize];
-        debug_assert!(escape_byte != 0);
-
         let i = at + cur;
-        // Copy unescaped portion if needed
-        if *start < i {
-            result.extend_from_slice(&bytes[*start..i]);
-        }
-        // Write escape sequence
-        write_escape(result, escape_byte, c);
-        *start = i + 1;
 
-        // Clear the lowest set bit
-        remaining &= remaining - 1;
+        // Copy unescaped portion using copy_nonoverlapping
+        if *start < i {
+            let src = bytes.as_ptr().add(*start);
+            let len = i - *start;
+            let dst = result.as_mut_ptr().add(result.len());
+            std::ptr::copy_nonoverlapping(src, dst, len);
+            result.set_len(result.len() + len);
+        }
+
+        // Handle continuous escapes starting from current position
+        let escape_src = ptr.add(cur);
+        let mut dst = result.as_mut_ptr().add(result.len());
+        let new_src = escape_continuous(escape_src, &mut dst, bytes, start_ptr);
+        let bytes_written = sub(dst, result.as_mut_ptr().add(result.len()));
+        result.set_len(result.len() + bytes_written);
+
+        // Update start position
+        let chars_processed = sub(new_src, escape_src);
+        *start = i + chars_processed;
+
+        // Clear processed bits from mask
+        // We need to clear all bits up to and including the last processed character
+        let bits_to_clear = cur + chars_processed;
+        if bits_to_clear < 64 {
+            remaining &= !((1u64 << bits_to_clear) - 1);
+        } else {
+            remaining = 0;
+        }
     }
+}
+
+/// Process continuous escaped characters efficiently
+/// Returns the new source pointer position
+#[inline(always)]
+unsafe fn escape_continuous(
+    src: *const u8,
+    dst: &mut *mut u8,
+    bytes: &[u8],
+    start_ptr: *const u8,
+) -> *const u8 {
+    let mut ptr = src;
+
+    loop {
+        let c = *ptr;
+        let escape_byte = ESCAPE[c as usize];
+
+        if escape_byte == 0 {
+            break;
+        }
+
+        let (len, escape_bytes) = ESCAPE_TABLE[c as usize];
+
+        if len > 0 {
+            // Copy 8 bytes at once (actual escape + padding)
+            std::ptr::copy_nonoverlapping(escape_bytes.as_ptr(), *dst, 8);
+            *dst = dst.add(len as usize);
+        } else {
+            // Rare fallback for characters not in table
+            **dst = b'\\';
+            *dst = dst.add(1);
+            if escape_byte == UU {
+                std::ptr::copy_nonoverlapping(b"u00".as_ptr(), *dst, 3);
+                *dst = dst.add(3);
+                let hex = &HEX_BYTES[c as usize];
+                **dst = hex.0;
+                *dst = dst.add(1);
+                **dst = hex.1;
+                *dst = dst.add(1);
+            } else {
+                **dst = escape_byte;
+                *dst = dst.add(1);
+            }
+        }
+
+        ptr = ptr.add(1);
+
+        // Check if next character also needs escaping to continue the loop
+        if ptr >= bytes.as_ptr().add(bytes.len()) || ESCAPE[*ptr as usize] == 0 {
+            break;
+        }
+    }
+
+    ptr
 }
 
 #[inline(always)]

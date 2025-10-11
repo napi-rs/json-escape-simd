@@ -3,29 +3,12 @@ use std::arch::aarch64::{
 };
 
 use crate::generic::{ESCAPE, ESCAPE_TABLE, HEX_BYTES, UU};
+use crate::util::check_cross_page;
 
 const CHUNK: usize = 64;
 // 128 bytes ahead
 const PREFETCH_DISTANCE: usize = CHUNK * 2;
 const SLASH_SENTINEL: u8 = 0xFF;
-
-#[inline(always)]
-fn check_cross_page(ptr: *const u8, step: usize) -> bool {
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        // Check if reading 'step' bytes from 'ptr' would cross a page boundary
-        // Page size is typically 4096 bytes on aarch64 Linux and macOS
-        const PAGE_SIZE: usize = 4096;
-        ((ptr as usize & (PAGE_SIZE - 1)) + step) > PAGE_SIZE
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-    {
-        // On other platforms, always use the safe path with temporary buffer
-        // to avoid potential page faults
-        true
-    }
-}
 
 #[inline]
 pub fn escape_neon(bytes: &[u8], output: &mut Vec<u8>) {
@@ -123,55 +106,112 @@ pub fn escape_neon(bytes: &[u8], output: &mut Vec<u8>) {
 
 #[inline(always)]
 fn handle_tail(src: &[u8], dst: &mut Vec<u8>) {
-    for &c in src {
+    unsafe {
+        let mut dst_ptr = dst.as_mut_ptr().add(dst.len());
+        let dst_start = dst_ptr;
+        let mut i = 0;
+
+        while i < src.len() {
+            let c = src[i];
+            let escape_byte = ESCAPE[c as usize];
+
+            if escape_byte == 0 {
+                // No escape needed
+                *dst_ptr = c;
+                dst_ptr = dst_ptr.add(1);
+                i += 1;
+            } else {
+                // Handle continuous escapes
+                let consumed = escape_continuous(src, &mut dst_ptr, i);
+                i += consumed;
+            }
+        }
+
+        let bytes_written = dst_ptr as usize - dst_start as usize;
+        dst.set_len(dst.len() + bytes_written);
+    }
+}
+
+/// Process continuous escaped characters efficiently
+/// Returns the number of source bytes consumed
+#[inline(always)]
+unsafe fn escape_continuous(src: &[u8], dst: &mut *mut u8, start_idx: usize) -> usize {
+    let mut i = start_idx;
+
+    while i < src.len() {
+        let c = src[i];
         let escape_byte = ESCAPE[c as usize];
+
         if escape_byte == 0 {
-            dst.push(c);
-        } else {
-            write_escape(dst, escape_byte, c);
+            break;
+        }
+
+        let (len, escape_bytes) = ESCAPE_TABLE[c as usize];
+
+        unsafe {
+            if len > 0 {
+                // Copy 8 bytes at once (actual escape + padding)
+                std::ptr::copy_nonoverlapping(escape_bytes.as_ptr(), *dst, 8);
+                *dst = dst.add(len as usize);
+            } else {
+                // Rare fallback for characters not in table
+                **dst = b'\\';
+                *dst = dst.add(1);
+                if escape_byte == UU {
+                    std::ptr::copy_nonoverlapping(b"u00".as_ptr(), *dst, 3);
+                    *dst = dst.add(3);
+                    let hex = &HEX_BYTES[c as usize];
+                    **dst = hex.0;
+                    *dst = dst.add(1);
+                    **dst = hex.1;
+                    *dst = dst.add(1);
+                } else {
+                    **dst = escape_byte;
+                    *dst = dst.add(1);
+                }
+            }
+        }
+
+        i += 1;
+
+        // Check if next character also needs escaping
+        if i < src.len() && ESCAPE[src[i] as usize] == 0 {
+            break;
         }
     }
+
+    i - start_idx
 }
 
 #[inline(always)]
 fn handle_block(src: &[u8], mask: &[u8; 16], dst: &mut Vec<u8>) {
-    for (j, &m) in mask.iter().enumerate() {
-        let c = src[j];
-        if m == 0 {
-            dst.push(c);
-        } else if m == SLASH_SENTINEL {
-            dst.push(b'\\');
-            dst.push(b'\\');
-        } else {
-            write_escape(dst, m, c);
-        }
-    }
-}
+    unsafe {
+        let mut dst_ptr = dst.as_mut_ptr().add(dst.len());
+        let dst_start = dst_ptr;
+        let mut j = 0;
 
-#[inline(always)]
-fn write_escape(dst: &mut Vec<u8>, escape_byte: u8, c: u8) {
-    // Use optimized escape table for bulk writing
-    let (len, bytes) = ESCAPE_TABLE[c as usize];
-    if len > 0 {
-        // Ensure we have enough capacity for the escape sequence
-        dst.reserve(len as usize);
-        unsafe {
-            let ptr = dst.as_mut_ptr().add(dst.len());
-            // Use copy_nonoverlapping for fast bulk copy
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, 8);
-            // Update the length - only add the actual escape sequence length
-            dst.set_len(dst.len() + len as usize);
+        while j < 16 {
+            let m = mask[j];
+            let c = src[j];
+
+            if m == 0 {
+                // No escape needed, copy directly
+                *dst_ptr = c;
+                dst_ptr = dst_ptr.add(1);
+                j += 1;
+            } else if m == SLASH_SENTINEL {
+                // Backslash escape
+                std::ptr::copy_nonoverlapping(b"\\\\".as_ptr(), dst_ptr, 2);
+                dst_ptr = dst_ptr.add(2);
+                j += 1;
+            } else {
+                // Handle continuous escapes
+                let consumed = escape_continuous(src, &mut dst_ptr, j);
+                j += consumed;
+            }
         }
-    } else {
-        // Fallback to old method for characters not in the table
-        dst.push(b'\\');
-        if escape_byte == UU {
-            dst.extend_from_slice(b"u00");
-            let hex = &HEX_BYTES[c as usize];
-            dst.push(hex.0);
-            dst.push(hex.1);
-        } else {
-            dst.push(escape_byte);
-        }
+
+        let bytes_written = dst_ptr as usize - dst_start as usize;
+        dst.set_len(dst.len() + bytes_written);
     }
 }

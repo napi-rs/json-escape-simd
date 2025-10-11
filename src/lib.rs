@@ -111,6 +111,7 @@
 #[cfg(target_arch = "aarch64")]
 mod aarch64;
 mod generic;
+mod util;
 #[cfg(target_arch = "x86_64")]
 mod x86;
 
@@ -122,7 +123,7 @@ pub fn escape<S: AsRef<str>>(input: S) -> String {
     #[cfg(not(feature = "force_aarch64_neon"))]
     use generic::escape_inner;
 
-    let mut result = Vec::with_capacity(input.as_ref().len() + input.as_ref().len() / 2 + 2);
+    let mut result = Vec::with_capacity(input.as_ref().len() * 6 + 32 + 3);
     result.push(b'"');
     let s = input.as_ref();
     let bytes = s.as_bytes();
@@ -181,6 +182,8 @@ pub fn escape<S: AsRef<str>>(input: S) -> String {
 pub fn escape_into<S: AsRef<str>>(input: S, output: &mut Vec<u8>) {
     #[cfg(not(feature = "force_aarch64_neon"))]
     use generic::escape_inner;
+
+    output.reserve(input.as_ref().len() * 6 + 32 + 3);
 
     output.push(b'"');
     let s = input.as_ref();
@@ -437,7 +440,7 @@ fn test_rxjs() {
     assert!(!sources.is_empty());
     for source in sources {
         assert_eq!(escape(&source), serde_json::to_string(&source).unwrap());
-        let mut output = String::new();
+        let mut output = String::with_capacity(source.len() * 6 + 32 + 3);
         escape_into(&source, unsafe { output.as_mut_vec() });
         assert_eq!(output, serde_json::to_string(&source).unwrap());
     }
@@ -465,7 +468,7 @@ fn test_sources() {
     assert!(!sources.is_empty());
     for source in sources {
         assert_eq!(escape(&source), serde_json::to_string(&source).unwrap());
-        let mut output = String::new();
+        let mut output = String::with_capacity(source.len() * 6 + 32 + 3);
         escape_into(&source, unsafe { output.as_mut_vec() });
         assert_eq!(output, serde_json::to_string(&source).unwrap());
     }
