@@ -145,41 +145,50 @@ pub unsafe fn escape_avx512(bytes: &[u8], result: &mut Vec<u8>) {
 
         if any_escape == 0 {
             // No escapes needed, copy whole chunk
-            if start < sub(ptr, start_ptr) {
-                result.extend_from_slice(&bytes[start..sub(ptr, start_ptr)]);
+            let at = sub(ptr, start_ptr);
+            if start < at {
+                result.extend_from_slice(&bytes[start..at]);
             }
             result.extend_from_slice(std::slice::from_raw_parts(ptr, LOOP_SIZE_AVX512));
-            start = sub(ptr, start_ptr) + LOOP_SIZE_AVX512;
+            start = at + LOOP_SIZE_AVX512;
         } else {
             // Process each 64-byte chunk that has escapes
-            process_mask_avx512(ptr, start_ptr, result, &mut start, bytes, mask_a, 0);
-            process_mask_avx512(
-                ptr,
-                start_ptr,
-                result,
-                &mut start,
-                bytes,
-                mask_b,
-                M512_VECTOR_SIZE,
-            );
-            process_mask_avx512(
-                ptr,
-                start_ptr,
-                result,
-                &mut start,
-                bytes,
-                mask_c,
-                M512_VECTOR_SIZE * 2,
-            );
-            process_mask_avx512(
-                ptr,
-                start_ptr,
-                result,
-                &mut start,
-                bytes,
-                mask_d,
-                M512_VECTOR_SIZE * 3,
-            );
+            if mask_a != 0 {
+                process_mask_avx512(ptr, start_ptr, result, &mut start, bytes, mask_a, 0);
+            }
+            if mask_b != 0 {
+                process_mask_avx512(
+                    ptr,
+                    start_ptr,
+                    result,
+                    &mut start,
+                    bytes,
+                    mask_b,
+                    M512_VECTOR_SIZE,
+                );
+            }
+            if mask_c != 0 {
+                process_mask_avx512(
+                    ptr,
+                    start_ptr,
+                    result,
+                    &mut start,
+                    bytes,
+                    mask_c,
+                    M512_VECTOR_SIZE * 2,
+                );
+            }
+            if mask_d != 0 {
+                process_mask_avx512(
+                    ptr,
+                    start_ptr,
+                    result,
+                    &mut start,
+                    bytes,
+                    mask_d,
+                    M512_VECTOR_SIZE * 3,
+                );
+            }
         }
 
         ptr = ptr.add(LOOP_SIZE_AVX512);
@@ -365,11 +374,12 @@ pub unsafe fn escape_avx2(bytes: &[u8], result: &mut Vec<u8>) {
 
         if _mm256_movemask_epi8(any_escape) == 0 {
             // No escapes needed, copy whole chunk
-            if start < sub(ptr, start_ptr) {
-                result.extend_from_slice(&bytes[start..sub(ptr, start_ptr)]);
+            let at = sub(ptr, start_ptr);
+            if start < at {
+                result.extend_from_slice(&bytes[start..at]);
             }
             result.extend_from_slice(std::slice::from_raw_parts(ptr, LOOP_SIZE_AVX2));
-            start = sub(ptr, start_ptr) + LOOP_SIZE_AVX2;
+            start = at + LOOP_SIZE_AVX2;
         } else {
             // Get individual masks only when needed
             let mask_a = _mm256_movemask_epi8(cmp_a);
@@ -378,34 +388,42 @@ pub unsafe fn escape_avx2(bytes: &[u8], result: &mut Vec<u8>) {
             let mask_d = _mm256_movemask_epi8(cmp_d);
 
             // Process each 32-byte chunk that has escapes
-            process_mask_avx(ptr, start_ptr, result, &mut start, bytes, mask_a, 0);
-            process_mask_avx(
-                ptr,
-                start_ptr,
-                result,
-                &mut start,
-                bytes,
-                mask_b,
-                M256_VECTOR_SIZE,
-            );
-            process_mask_avx(
-                ptr,
-                start_ptr,
-                result,
-                &mut start,
-                bytes,
-                mask_c,
-                M256_VECTOR_SIZE * 2,
-            );
-            process_mask_avx(
-                ptr,
-                start_ptr,
-                result,
-                &mut start,
-                bytes,
-                mask_d,
-                M256_VECTOR_SIZE * 3,
-            );
+            if mask_a != 0 {
+                process_mask_avx(ptr, start_ptr, result, &mut start, bytes, mask_a, 0);
+            }
+            if mask_b != 0 {
+                process_mask_avx(
+                    ptr,
+                    start_ptr,
+                    result,
+                    &mut start,
+                    bytes,
+                    mask_b,
+                    M256_VECTOR_SIZE,
+                );
+            }
+            if mask_c != 0 {
+                process_mask_avx(
+                    ptr,
+                    start_ptr,
+                    result,
+                    &mut start,
+                    bytes,
+                    mask_c,
+                    M256_VECTOR_SIZE * 2,
+                );
+            }
+            if mask_d != 0 {
+                process_mask_avx(
+                    ptr,
+                    start_ptr,
+                    result,
+                    &mut start,
+                    bytes,
+                    mask_d,
+                    M256_VECTOR_SIZE * 3,
+                );
+            }
         }
 
         ptr = ptr.add(LOOP_SIZE_AVX2);
@@ -658,10 +676,6 @@ unsafe fn process_mask_avx(
     mask: i32,
     offset: usize,
 ) {
-    if mask == 0 {
-        return;
-    }
-
     let ptr = ptr.add(offset);
     let at = sub(ptr, start_ptr);
 
@@ -697,10 +711,6 @@ unsafe fn process_mask_avx512(
     mask: u64,
     offset: usize,
 ) {
-    if mask == 0 {
-        return;
-    }
-
     let ptr = ptr.add(offset);
     let at = sub(ptr, start_ptr);
 

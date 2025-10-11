@@ -83,21 +83,34 @@ pub fn escape_neon(bytes: &[u8], output: &mut Vec<u8>) {
                 continue;
             }
 
-            macro_rules! handle {
-                ($mask:expr, $mask_r:expr, $off:expr) => {
-                    if $mask_r == 0 {
-                        output.extend_from_slice(std::slice::from_raw_parts(ptr.add($off), 16));
-                    } else {
-                        vst1q_u8(placeholder.as_mut_ptr(), $mask);
-                        handle_block(&bytes[i + $off..i + $off + 16], &placeholder, output);
-                    }
-                };
+            // Process each 16-byte chunk that has escapes
+            if mask_r_1 != 0 {
+                vst1q_u8(placeholder.as_mut_ptr(), mask_1);
+                handle_block(&bytes[i..i + 16], &placeholder, output);
+            } else {
+                output.extend_from_slice(std::slice::from_raw_parts(ptr, 16));
             }
 
-            handle!(mask_1, mask_r_1, 0);
-            handle!(mask_2, mask_r_2, 16);
-            handle!(mask_3, mask_r_3, 32);
-            handle!(mask_4, mask_r_4, 48);
+            if mask_r_2 != 0 {
+                vst1q_u8(placeholder.as_mut_ptr(), mask_2);
+                handle_block(&bytes[i + 16..i + 32], &placeholder, output);
+            } else {
+                output.extend_from_slice(std::slice::from_raw_parts(ptr.add(16), 16));
+            }
+
+            if mask_r_3 != 0 {
+                vst1q_u8(placeholder.as_mut_ptr(), mask_3);
+                handle_block(&bytes[i + 32..i + 48], &placeholder, output);
+            } else {
+                output.extend_from_slice(std::slice::from_raw_parts(ptr.add(32), 16));
+            }
+
+            if mask_r_4 != 0 {
+                vst1q_u8(placeholder.as_mut_ptr(), mask_4);
+                handle_block(&bytes[i + 48..i + 64], &placeholder, output);
+            } else {
+                output.extend_from_slice(std::slice::from_raw_parts(ptr.add(48), 16));
+            }
 
             i += CHUNK;
         }
