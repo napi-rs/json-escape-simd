@@ -8,7 +8,7 @@ use std::arch::x86_64::{
     _mm512_cmplt_epu8_mask, _mm512_load_si512, _mm512_loadu_si512, _mm512_set1_epi8,
 };
 
-use crate::generic::{ESCAPE, HEX_BYTES, UU};
+use crate::generic::{ESCAPE, ESCAPE_TABLE, HEX_BYTES, UU};
 
 // Constants for control character detection using signed comparison trick
 const TRANSLATION_A: i8 = i8::MAX - 31i8;
@@ -344,29 +344,24 @@ pub unsafe fn escape_avx2(bytes: &[u8], result: &mut Vec<u8>) {
         let a2 = _mm256_load_si256(ptr.add(M256_VECTOR_SIZE * 2) as *const __m256i);
         let a3 = _mm256_load_si256(ptr.add(M256_VECTOR_SIZE * 3) as *const __m256i);
 
-        // Check for quotes (") in all vectors
-        let quote_0 = _mm256_cmpeq_epi8(a0, v_b);
-        let quote_1 = _mm256_cmpeq_epi8(a1, v_b);
-        let quote_2 = _mm256_cmpeq_epi8(a2, v_b);
-        let quote_3 = _mm256_cmpeq_epi8(a3, v_b);
-
-        // Check for backslash (\) in all vectors
-        let slash_0 = _mm256_cmpeq_epi8(a0, v_c);
-        let slash_1 = _mm256_cmpeq_epi8(a1, v_c);
-        let slash_2 = _mm256_cmpeq_epi8(a2, v_c);
-        let slash_3 = _mm256_cmpeq_epi8(a3, v_c);
-
-        // Check for control characters (< 0x20) in all vectors
-        let ctrl_0 = _mm256_cmpgt_epi8(_mm256_add_epi8(a0, v_translation_a), v_below_a);
-        let ctrl_1 = _mm256_cmpgt_epi8(_mm256_add_epi8(a1, v_translation_a), v_below_a);
-        let ctrl_2 = _mm256_cmpgt_epi8(_mm256_add_epi8(a2, v_translation_a), v_below_a);
-        let ctrl_3 = _mm256_cmpgt_epi8(_mm256_add_epi8(a3, v_translation_a), v_below_a);
-
-        // Combine all masks
-        let cmp_a = _mm256_or_si256(_mm256_or_si256(quote_0, slash_0), ctrl_0);
-        let cmp_b = _mm256_or_si256(_mm256_or_si256(quote_1, slash_1), ctrl_1);
-        let cmp_c = _mm256_or_si256(_mm256_or_si256(quote_2, slash_2), ctrl_2);
-        let cmp_d = _mm256_or_si256(_mm256_or_si256(quote_3, slash_3), ctrl_3);
+        // Combined mask computation - all escape conditions in one operation
+        // This reduces instruction count and improves pipelining
+        let cmp_a = _mm256_or_si256(
+            _mm256_or_si256(_mm256_cmpeq_epi8(a0, v_b), _mm256_cmpeq_epi8(a0, v_c)),
+            _mm256_cmpgt_epi8(_mm256_add_epi8(a0, v_translation_a), v_below_a),
+        );
+        let cmp_b = _mm256_or_si256(
+            _mm256_or_si256(_mm256_cmpeq_epi8(a1, v_b), _mm256_cmpeq_epi8(a1, v_c)),
+            _mm256_cmpgt_epi8(_mm256_add_epi8(a1, v_translation_a), v_below_a),
+        );
+        let cmp_c = _mm256_or_si256(
+            _mm256_or_si256(_mm256_cmpeq_epi8(a2, v_b), _mm256_cmpeq_epi8(a2, v_c)),
+            _mm256_cmpgt_epi8(_mm256_add_epi8(a2, v_translation_a), v_below_a),
+        );
+        let cmp_d = _mm256_or_si256(
+            _mm256_or_si256(_mm256_cmpeq_epi8(a3, v_b), _mm256_cmpeq_epi8(a3, v_c)),
+            _mm256_cmpgt_epi8(_mm256_add_epi8(a3, v_translation_a), v_below_a),
+        );
 
         // Fast path: check if any escaping needed
         let any_escape =
@@ -738,15 +733,32 @@ unsafe fn process_mask_avx512(
 
 #[inline(always)]
 fn write_escape(result: &mut Vec<u8>, escape_byte: u8, c: u8) {
-    result.push(b'\\');
-    if escape_byte == UU {
-        // Unicode escape for control characters
-        result.extend_from_slice(b"u00");
-        let hex_digits = &HEX_BYTES[c as usize];
-        result.push(hex_digits.0);
-        result.push(hex_digits.1);
+    // Use optimized escape table for bulk writing
+    let (len, bytes) = ESCAPE_TABLE[c as usize];
+    if len > 0 {
+        // Ensure we have enough capacity for the escape sequence
+        result.reserve(len as usize);
+        let dst = result.as_mut_ptr().add(result.len());
+        // Use copy_nonoverlapping for fast bulk copy
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, 8);
+        }
+        // Update the length - only add the actual escape sequence length
+        unsafe {
+            result.set_len(result.len() + len as usize);
+        }
     } else {
-        // Simple escape
-        result.push(escape_byte);
+        // Fallback to old method for characters not in the table
+        result.push(b'\\');
+        if escape_byte == UU {
+            // Unicode escape for control characters
+            result.extend_from_slice(b"u00");
+            let hex_digits = &HEX_BYTES[c as usize];
+            result.push(hex_digits.0);
+            result.push(hex_digits.1);
+        } else {
+            // Simple escape
+            result.push(escape_byte);
+        }
     }
 }

@@ -2,7 +2,7 @@ use std::arch::aarch64::{
     vceqq_u8, vdupq_n_u8, vld1q_u8_x4, vmaxvq_u8, vorrq_u8, vqtbl4q_u8, vst1q_u8,
 };
 
-use crate::generic::{ESCAPE, HEX_BYTES, UU};
+use crate::generic::{ESCAPE, ESCAPE_TABLE, HEX_BYTES, UU};
 
 const CHUNK: usize = 64;
 // 128 bytes ahead
@@ -150,13 +150,28 @@ fn handle_block(src: &[u8], mask: &[u8; 16], dst: &mut Vec<u8>) {
 
 #[inline(always)]
 fn write_escape(dst: &mut Vec<u8>, escape_byte: u8, c: u8) {
-    dst.push(b'\\');
-    if escape_byte == UU {
-        dst.extend_from_slice(b"u00");
-        let hex = &HEX_BYTES[c as usize];
-        dst.push(hex.0);
-        dst.push(hex.1);
+    // Use optimized escape table for bulk writing
+    let (len, bytes) = ESCAPE_TABLE[c as usize];
+    if len > 0 {
+        // Ensure we have enough capacity for the escape sequence
+        dst.reserve(len as usize);
+        unsafe {
+            let ptr = dst.as_mut_ptr().add(dst.len());
+            // Use copy_nonoverlapping for fast bulk copy
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, 8);
+            // Update the length - only add the actual escape sequence length
+            dst.set_len(dst.len() + len as usize);
+        }
     } else {
-        dst.push(escape_byte);
+        // Fallback to old method for characters not in the table
+        dst.push(b'\\');
+        if escape_byte == UU {
+            dst.extend_from_slice(b"u00");
+            let hex = &HEX_BYTES[c as usize];
+            dst.push(hex.0);
+            dst.push(hex.1);
+        } else {
+            dst.push(escape_byte);
+        }
     }
 }
