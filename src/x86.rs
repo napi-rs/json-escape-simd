@@ -621,24 +621,25 @@ pub unsafe fn escape_sse2(bytes: &[u8], result: &mut Vec<u8>) {
 
         if mask != 0 {
             let at = sub(ptr, start_ptr);
-            let mut cur = mask.trailing_zeros() as usize;
-            loop {
-                let c = *ptr.add(cur);
+            let first_escape = mask.trailing_zeros() as usize;
+
+            // Copy everything before the first escape
+            let i = at + first_escape;
+            if start < i {
+                result.extend_from_slice(&bytes[start..i]);
+            }
+
+            // Process bytes sequentially from the first escape position
+            for pos in first_escape..remaining {
+                let c = *ptr.add(pos);
                 let escape_byte = ESCAPE[c as usize];
                 if escape_byte != 0 {
-                    let i = at + cur;
-                    if start < i {
-                        result.extend_from_slice(&bytes[start..i]);
-                    }
                     write_escape(result, escape_byte, c);
-                    start = i + 1;
+                } else {
+                    result.push(c);
                 }
-                mask ^= 1 << cur;
-                if mask == 0 {
-                    break;
-                }
-                cur = mask.trailing_zeros() as usize;
             }
+            start = at + remaining;
         }
     }
 
@@ -665,26 +666,32 @@ unsafe fn process_mask_avx(
     let ptr = ptr.add(offset);
     let at = sub(ptr, start_ptr);
 
-    // Process mask bits using bit manipulation
-    let mut remaining = mask as u32;
-    while remaining != 0 {
-        let cur = remaining.trailing_zeros() as usize;
-        let c = *ptr.add(cur);
-        let escape_byte = ESCAPE[c as usize];
-        debug_assert!(escape_byte != 0);
+    // Find the first escape position
+    let first_escape = (mask as u32).trailing_zeros() as usize;
 
-        let i = at + cur;
-        // Copy unescaped portion if needed
-        if *start < i {
-            result.extend_from_slice(&bytes[*start..i]);
-        }
-        // Write escape sequence
-        write_escape(result, escape_byte, c);
-        *start = i + 1;
-
-        // Clear the lowest set bit
-        remaining &= remaining - 1;
+    // Copy everything before the first escape
+    let i = at + first_escape;
+    if *start < i {
+        result.extend_from_slice(&bytes[*start..i]);
     }
+
+    // Process bytes sequentially from the first escape position
+    let mut pos = first_escape;
+    let end = at + M256_VECTOR_SIZE;
+
+    while pos < M256_VECTOR_SIZE {
+        let c = *ptr.add(pos);
+        let escape_byte = ESCAPE[c as usize];
+
+        if escape_byte != 0 {
+            write_escape(result, escape_byte, c);
+        } else {
+            result.push(c);
+        }
+        pos += 1;
+    }
+
+    *start = end;
 }
 
 #[inline(always)]
@@ -704,26 +711,32 @@ unsafe fn process_mask_avx512(
     let ptr = ptr.add(offset);
     let at = sub(ptr, start_ptr);
 
-    // Process mask bits using bit manipulation
-    let mut remaining = mask;
-    while remaining != 0 {
-        let cur = remaining.trailing_zeros() as usize;
-        let c = *ptr.add(cur);
-        let escape_byte = ESCAPE[c as usize];
-        debug_assert!(escape_byte != 0);
+    // Find the first escape position
+    let first_escape = mask.trailing_zeros() as usize;
 
-        let i = at + cur;
-        // Copy unescaped portion if needed
-        if *start < i {
-            result.extend_from_slice(&bytes[*start..i]);
-        }
-        // Write escape sequence
-        write_escape(result, escape_byte, c);
-        *start = i + 1;
-
-        // Clear the lowest set bit
-        remaining &= remaining - 1;
+    // Copy everything before the first escape
+    let i = at + first_escape;
+    if *start < i {
+        result.extend_from_slice(&bytes[*start..i]);
     }
+
+    // Process bytes sequentially from the first escape position
+    let mut pos = first_escape;
+    let end = at + M512_VECTOR_SIZE;
+
+    while pos < M512_VECTOR_SIZE {
+        let c = *ptr.add(pos);
+        let escape_byte = ESCAPE[c as usize];
+
+        if escape_byte != 0 {
+            write_escape(result, escape_byte, c);
+        } else {
+            result.push(c);
+        }
+        pos += 1;
+    }
+
+    *start = end;
 }
 
 #[inline(always)]
