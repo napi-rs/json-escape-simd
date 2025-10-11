@@ -122,40 +122,15 @@ fn handle_tail(src: &[u8], dst: &mut Vec<u8>) {
 
 #[inline(always)]
 fn handle_block(src: &[u8], mask: &[u8; 16], dst: &mut Vec<u8>) {
-    // Find first escape position
-    let mut first_escape = None;
-    for (i, &m) in mask.iter().enumerate() {
-        if m != 0 {
-            first_escape = Some(i);
-            break;
-        }
-    }
-
-    match first_escape {
-        None => {
-            // No escapes, copy all bytes
-            dst.extend_from_slice(src);
-        }
-        Some(pos) => {
-            // Copy everything before first escape
-            if pos > 0 {
-                dst.extend_from_slice(&src[0..pos]);
-            }
-
-            // Process from first escape position
-            for j in pos..16 {
-                let c = src[j];
-                let m = mask[j];
-
-                if m == 0 {
-                    dst.push(c);
-                } else if m == SLASH_SENTINEL {
-                    dst.push(b'\\');
-                    dst.push(b'\\');
-                } else {
-                    write_escape(dst, m, c);
-                }
-            }
+    for (j, &m) in mask.iter().enumerate() {
+        let c = src[j];
+        if m == 0 {
+            dst.push(c);
+        } else if m == SLASH_SENTINEL {
+            dst.push(b'\\');
+            dst.push(b'\\');
+        } else {
+            write_escape(dst, m, c);
         }
     }
 }

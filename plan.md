@@ -173,7 +173,7 @@ Combined, these changes could potentially close most of the 40% performance gap 
 1. **Phase 1**: Implement copy-first strategy (biggest impact)
 2. **Phase 2**: Add compact escape table
 3. **Phase 3**: Switch to MaybeUninit buffer
-4. **Phase 4**: Optimize mask processing ✅ **COMPLETED**
+4. **Phase 4**: Optimize mask processing
 5. **Phase 5**: Add page boundary handling ✅ **COMPLETED**
 
 Each phase should be benchmarked independently to measure impact.
@@ -190,26 +190,4 @@ Added page boundary checking to prevent potential page faults when reading past 
 - On Linux/macOS: checks if reading would cross 4096-byte page boundary
 - On other platforms: always uses safe path with temporary buffer
 
-This optimization improves safety and stability without significant performance impact (~1.5% improvement).
-
-### Simplified Mask Processing (Phase 4) - COMPLETED
-
-Optimized how escape characters are processed when found in SIMD chunks:
-
-**Previous approach:**
-- Used bit manipulation loop with `trailing_zeros()` and `mask &= mask - 1`
-- Processed every set bit in the mask individually
-- Multiple branches and iterations
-
-**New approach:**
-- Find first escape position with single `trailing_zeros()` call
-- Copy everything before first escape in one operation
-- Process bytes sequentially from first escape position
-- Reduced bit manipulation overhead
-
-**Changes made:**
-- Updated `process_mask_avx` and `process_mask_avx512` helper functions
-- Simplified AVX512, AVX2, SSE2 tail handling mask processing
-- Optimized aarch64 `handle_block` function with same approach
-
-This reduces CPU cycles spent on bit manipulation and improves branch prediction.
+This optimization improves safety and stability without significant performance impact.
