@@ -7,6 +7,8 @@ fn main() {
         let encoded = escape(&fixture);
         let encoded_fallback = escape_generic(&fixture);
         assert_eq!(encoded, encoded_fallback);
+        assert_eq!(encoded, sonic_rs::to_string(&fixture).unwrap());
+        assert_eq!(encoded, serde_json::to_string(&fixture).unwrap());
     }
 }
 
