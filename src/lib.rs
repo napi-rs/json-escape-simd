@@ -388,21 +388,29 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
         #[cfg(miri)]
         let mut placeholder: [u8; LANES] = [0; LANES];
         while nb > 0 {
-            v = if cfg!(not(any(target_os = "linux", target_os = "macos")))
-                || check_cross_page(sptr, LANES)
-            {
-                std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
-                load(placeholder[..].as_ptr())
-            } else {
-                #[cfg(not(debug_assertions))]
-                {
-                    // disable memory sanitizer here
-                    load(sptr)
-                }
-                #[cfg(debug_assertions)]
+            v = {
+                #[cfg(not(any(target_os = "linux", target_os = "macos")))]
                 {
                     std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
                     load(placeholder[..].as_ptr())
+                }
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                {
+                    if check_cross_page(sptr, LANES) {
+                        std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
+                        load(placeholder[..].as_ptr())
+                    } else {
+                        #[cfg(not(debug_assertions))]
+                        {
+                            // disable memory sanitizer here
+                            load(sptr)
+                        }
+                        #[cfg(debug_assertions)]
+                        {
+                            std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
+                            load(placeholder[..].as_ptr())
+                        }
+                    }
                 }
             };
             v.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(dptr, LANES));
