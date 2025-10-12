@@ -2,7 +2,10 @@ use std::{fs, hint::black_box};
 
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use json_escape_simd::{escape, escape_generic};
+use generic::escape_generic;
+use json_escape_simd::escape;
+
+mod generic;
 
 fn get_rxjs_sources() -> Vec<String> {
     let rxjs_paths = glob::glob("node_modules/rxjs/src/**/*.ts").unwrap();
@@ -86,6 +89,16 @@ fn run_benchmarks(c: &mut Criterion, sources: &[String], prefix: &str) {
     });
 }
 
+fn short_string_benchmark(c: &mut Criterion) {
+    let sources = vec![
+        "Hello, world!".to_string(),
+        r#"abcdefghijklmnopqrstuvwxyz .*? hello world escape json string"#.to_string(),
+        "normal string 🥹".to_string(),
+        "中文 English 🚀 \n❓ 𝄞".to_string(),
+    ];
+    run_benchmarks(c, &sources, "short string");
+}
+
 fn rxjs_benchmark(c: &mut Criterion) {
     let sources = get_rxjs_sources();
     if !sources.is_empty() {
@@ -100,5 +113,10 @@ fn fixtures_benchmark(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, rxjs_benchmark, fixtures_benchmark);
+criterion_group!(
+    benches,
+    short_string_benchmark,
+    rxjs_benchmark,
+    fixtures_benchmark
+);
 criterion_main!(benches);

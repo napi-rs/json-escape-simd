@@ -4,17 +4,7 @@
 ![docs.rs](https://img.shields.io/docsrs/json-escape-simd)
 [![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/napi-rs/json-escape-simd)
 
-Optimized SIMD routines for escaping JSON strings. This repository contains the `json-escape-simd` crate, comparison fixtures, and Criterion benches against commonly used alternatives.
-
-> [!IMPORTANT]
->
-> On aarch64 NEON hosts the available register width is **128** bits, which is narrower than the lookup table this implementation prefers. As a result the SIMD path may not outperform the generic fallback, which is reflected in the benchmark numbers below.
->
-> On some modern macOS devices with larger register numbers, the SIMD path may outperform the generic fallback, see the [M3 max benchmark](#apple-m3-max) below.
-
-> [!NOTE]
->
-> The `force_aarch64_neon` feature flag can be used to force use of the neon implementation on aarch64. This is useful for the benchmark.
+Optimized SIMD routines for escaping JSON strings. The implementation is from [sonic-rs](https://github.com/cloudwego/sonic-rs), we only take the string escaping part to avoid the abstraction overhead.
 
 ## Benchmarks
 

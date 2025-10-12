@@ -14,15 +14,6 @@ pub fn escape_generic<S: AsRef<str>>(s: S) -> String {
 }
 
 #[inline]
-pub fn escape_into_generic<S: AsRef<str>>(s: S, output: &mut Vec<u8>) {
-    let s = s.as_ref();
-    let bytes = s.as_bytes();
-    output.push(b'"');
-    escape_inner(bytes, output);
-    output.push(b'"');
-}
-
-#[inline]
 // Slightly modified version of
 // <https://github.com/serde-rs/json/blob/d12e943590208da738c092db92c34b39796a2538/src/ser.rs#L2079>
 // Borrowed from:
@@ -140,49 +131,3 @@ pub(crate) static HEX_BYTES: [HexPair; 32] = [
     HexPair(b'1', b'e'),
     HexPair(b'1', b'f'),
 ];
-
-// Optimized escape table with 8-byte arrays for fast bulk writing
-// First element is the length of escape sequence, followed by the escape bytes
-pub(crate) static ESCAPE_TABLE: [(u8, [u8; 8]); 256] = {
-    let mut table = [(0u8, [0u8; 8]); 256];
-
-    // Control characters \u0000 - \u001f
-    table[0x00] = (6, *b"\\u0000\0\0");
-    table[0x01] = (6, *b"\\u0001\0\0");
-    table[0x02] = (6, *b"\\u0002\0\0");
-    table[0x03] = (6, *b"\\u0003\0\0");
-    table[0x04] = (6, *b"\\u0004\0\0");
-    table[0x05] = (6, *b"\\u0005\0\0");
-    table[0x06] = (6, *b"\\u0006\0\0");
-    table[0x07] = (6, *b"\\u0007\0\0");
-    table[0x08] = (2, *b"\\b\0\0\0\0\0\0");
-    table[0x09] = (2, *b"\\t\0\0\0\0\0\0");
-    table[0x0A] = (2, *b"\\n\0\0\0\0\0\0");
-    table[0x0B] = (6, *b"\\u000b\0\0");
-    table[0x0C] = (2, *b"\\f\0\0\0\0\0\0");
-    table[0x0D] = (2, *b"\\r\0\0\0\0\0\0");
-    table[0x0E] = (6, *b"\\u000e\0\0");
-    table[0x0F] = (6, *b"\\u000f\0\0");
-    table[0x10] = (6, *b"\\u0010\0\0");
-    table[0x11] = (6, *b"\\u0011\0\0");
-    table[0x12] = (6, *b"\\u0012\0\0");
-    table[0x13] = (6, *b"\\u0013\0\0");
-    table[0x14] = (6, *b"\\u0014\0\0");
-    table[0x15] = (6, *b"\\u0015\0\0");
-    table[0x16] = (6, *b"\\u0016\0\0");
-    table[0x17] = (6, *b"\\u0017\0\0");
-    table[0x18] = (6, *b"\\u0018\0\0");
-    table[0x19] = (6, *b"\\u0019\0\0");
-    table[0x1A] = (6, *b"\\u001a\0\0");
-    table[0x1B] = (6, *b"\\u001b\0\0");
-    table[0x1C] = (6, *b"\\u001c\0\0");
-    table[0x1D] = (6, *b"\\u001d\0\0");
-    table[0x1E] = (6, *b"\\u001e\0\0");
-    table[0x1F] = (6, *b"\\u001f\0\0");
-
-    // Special characters
-    table[0x22] = (2, *b"\\\"\0\0\0\0\0\0"); // "
-    table[0x5C] = (2, *b"\\\\\0\0\0\0\0\0"); // \
-
-    table
-};
