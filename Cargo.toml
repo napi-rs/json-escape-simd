@@ -24,7 +24,6 @@ name = "escape"
 harness = false
 
 [dependencies]
-sonic-simd = "0.1"
 
 [dev-dependencies]
 criterion2 = "3"
