@@ -316,19 +316,11 @@ unsafe fn escape_unchecked(src: &mut *const u8, nb: &mut usize, dst: &mut *mut u
     }
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[inline(always)]
 fn check_cross_page(ptr: *const u8, step: usize) -> bool {
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
-        let page_size = 4096;
-        ((ptr as usize & (page_size - 1)) + step) > page_size
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-    {
-        // not check page cross in fallback envs, always true
-        true
-    }
+    let page_size = 4096;
+    ((ptr as usize & (page_size - 1)) + step) > page_size
 }
 
 #[inline(always)]
@@ -396,7 +388,9 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
         #[cfg(miri)]
         let mut placeholder: [u8; LANES] = [0; LANES];
         while nb > 0 {
-            v = if check_cross_page(sptr, LANES) {
+            v = if cfg!(not(any(target_os = "linux", target_os = "macos")))
+                || check_cross_page(sptr, LANES)
+            {
                 std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
                 load(placeholder[..].as_ptr())
             } else {
