@@ -88,18 +88,31 @@ Neon enabled.
 
 | Implementation        | Median time   | vs fastest |
 | --------------------- | ------------- | ---------- |
-| **`escape simd`**     | **307.20 µs** | **1.00×**  |
-| `escape generic`      | 490.00 µs     | 1.60×      |
-| `serde_json`          | 570.35 µs     | 1.86×      |
-| `escape v_jsonescape` | 599.72 µs     | 1.95×      |
-| `json-escape`         | 644.73 µs     | 2.10×      |
+| **`escape simd`**     | **196.07 µs** | **1.00×**  |
+| `escape sonic`        | 196.32 µs     | 1.00×      |
+| `escape generic`      | 488.37 µs     | 2.49×      |
+| `serde_json`          | 553.08 µs     | 2.82×      |
+| `escape v_jsonescape` | 618.31 µs     | 3.15×      |
+| `json-escape`         | 446.94 µs     | 2.28×      |
 
 **Fixtures payload (~300 iterations)**
 
 | Implementation        | Median time  | vs fastest |
 | --------------------- | ------------ | ---------- |
-| **`escape generic`**  | **17.89 ms** | **1.00×**  |
-| **`escape simd`**     | **17.92 ms** | **1.00×**  |
-| `serde_json`          | 19.78 ms     | 1.11×      |
-| `escape v_jsonescape` | 21.09 ms     | 1.18×      |
-| `json-escape`         | 22.43 ms     | 1.25×      |
+| **`escape simd`**     | **10.36 ms** | **1.00×**  |
+| `escape sonic`        | 10.57 ms     | 1.02×      |
+| `escape generic`      | 17.61 ms     | 1.70×      |
+| `json-escape`         | 18.01 ms     | 1.74×      |
+| `serde_json`          | 19.00 ms     | 1.83×      |
+| `escape v_jsonescape` | 21.38 ms     | 2.06×      |
+
+**Short string benchmark**
+
+| Implementation        | Median time   | vs fastest |
+| --------------------- | ------------- | ---------- |
+| **`escape simd`**     | **90.58 ns**  | **1.00×**  |
+| `serde_json`          | 139.23 ns     | 1.54×      |
+| `escape generic`      | 146.15 ns     | 1.61×      |
+| `json-escape`         | 173.60 ns     | 1.92×      |
+| `escape v_jsonescape` | 198.60 ns     | 2.19×      |
+| `escape sonic`        | 199.27 ns     | 2.20×      |

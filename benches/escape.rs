@@ -72,6 +72,7 @@ fn run_benchmarks(c: &mut Criterion, sources: &[String], prefix: &str) {
             }
         })
     });
+    #[cfg(not(feature = "codspeed"))]
     c.bench_function(&format!("{} escape generic", prefix), |b| {
         b.iter(|| {
             for source in sources {
