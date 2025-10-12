@@ -45,6 +45,30 @@ jobs:
       - name: Run tests
         run: cargo test
 
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+          components: miri
+          toolchain: nightly
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'yarn'
+      - name: Install dependencies
+        run: yarn install
+      - name: Download fixtures
+        run: node download-fixtures.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run miri
+        run: cargo miri test
+        env:
+          MIRIFLAGS: "-Zmiri-disable-isolation"
   bench:
     strategy:
       matrix:
@@ -53,6 +77,8 @@ jobs:
             os: ubuntu-latest
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+          - target: aarch64-pc-windows-msvc
+            os: windows-11-arm
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
           - target: aarch64-apple-darwin
