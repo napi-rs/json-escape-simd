@@ -432,7 +432,9 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
 }
 
 pub fn escape(value: &str) -> String {
-    let mut buf = Vec::with_capacity(value.len() * 6 + 32 + 3);
+    let capacity = value.len() * 6 + 32 + 3;
+    let mut buf = Vec::with_capacity(capacity);
+    unsafe { buf.set_len(capacity) };
     let cnt = format_string(value, &mut buf);
     unsafe { buf.set_len(cnt) };
     unsafe { String::from_utf8_unchecked(buf) }
