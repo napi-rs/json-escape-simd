@@ -315,7 +315,6 @@ dependencies = [
 name = "json-escape-simd"
 version = "1.1.0"
 dependencies = [
- "anyhow",
  "criterion2",
  "glob",
  "json-escape",
@@ -324,7 +323,6 @@ dependencies = [
  "serde_json",
  "sonic-rs",
  "sonic-simd",
- "thiserror",
  "v_jsonescape",
 ]
 
