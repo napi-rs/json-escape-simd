@@ -19,7 +19,7 @@ fn get_rxjs_sources() -> Vec<String> {
     sources
 }
 
-fn get_fixture_sources() -> Vec<String> {
+fn get_affine_sources() -> Vec<String> {
     let ts_paths = glob::glob("fixtures/**/*.ts").unwrap();
     let tsx_paths = glob::glob("fixtures/**/*.tsx").unwrap();
     let js_paths = glob::glob("fixtures/**/*.js").unwrap();
@@ -107,8 +107,8 @@ fn rxjs_benchmark(c: &mut Criterion) {
     }
 }
 
-fn fixtures_benchmark(c: &mut Criterion) {
-    let sources = get_fixture_sources();
+fn affine_sources_benchmark(c: &mut Criterion) {
+    let sources = get_affine_sources();
     if !sources.is_empty() {
         run_benchmarks(c, &sources, "fixtures");
     }
@@ -118,6 +118,6 @@ criterion_group!(
     benches,
     short_string_benchmark,
     rxjs_benchmark,
-    fixtures_benchmark
+    affine_sources_benchmark
 );
 criterion_main!(benches);
