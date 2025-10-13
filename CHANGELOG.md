@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v1.1.0...json-escape-simd-v2.0.0) - 2025-10-13
+
+### Fixed
+
+- tests on avx512 host ([#35](https://github.com/napi-rs/json-escape-simd/pull/35))
+
+### Other
+
+- run miri on more platform ([#34](https://github.com/napi-rs/json-escape-simd/pull/34))
+- cleanup codes ([#33](https://github.com/napi-rs/json-escape-simd/pull/33))
+- split impls into arch ([#32](https://github.com/napi-rs/json-escape-simd/pull/32))
+- runtime detect simd features ([#29](https://github.com/napi-rs/json-escape-simd/pull/29))
+- remove useless deps ([#28](https://github.com/napi-rs/json-escape-simd/pull/28))
+- update benchmark result
+- borrow the sonic-rs string escape implementation ([#27](https://github.com/napi-rs/json-escape-simd/pull/27))
+- *(deps)* update rust crate json-escape to 0.3.0 ([#24](https://github.com/napi-rs/json-escape-simd/pull/24))
+- *(deps)* update rust crate json-escape to 0.2.0 ([#23](https://github.com/napi-rs/json-escape-simd/pull/23))
+- omit other crates in codspeed ([#22](https://github.com/napi-rs/json-escape-simd/pull/22))
+- add benchmark ([#20](https://github.com/napi-rs/json-escape-simd/pull/20))
+
 ## [1.1.0](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v1.0.4...json-escape-simd-v1.1.0) - 2025-09-23
 
 ### Added
