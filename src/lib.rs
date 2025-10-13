@@ -427,7 +427,15 @@ macro_rules! load_v {
                 std::ptr::copy_nonoverlapping($sptr, $placeholder[..].as_mut_ptr(), $nb);
                 load($placeholder[..].as_ptr())
             } else {
-                load($sptr)
+                #[cfg(miri)]
+                {
+                    std::ptr::copy_nonoverlapping($sptr, $placeholder[..].as_mut_ptr(), $nb);
+                    load($placeholder[..].as_ptr())
+                }
+                #[cfg(not(miri))]
+                {
+                    load($sptr)
+                }
             }
         }
     }};
