@@ -55,7 +55,7 @@ jobs:
         with:
           tool: cargo-codspeed
       - name: Build benchmark
-        run: cargo codspeed build --features codspeed
+        run: cargo codspeed build --bench escape --features codspeed
       - name: Download fixtures
         uses: actions/download-artifact@v5
         with:
@@ -70,6 +70,6 @@ jobs:
         uses: CodSpeedHQ/action@v4
         timeout-minutes: 15
         with:
-          run: cargo codspeed run
+          run: cargo codspeed run escape
           mode: walltime
           token: ${{ secrets.CODSPEED_TOKEN }}
