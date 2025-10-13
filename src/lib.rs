@@ -563,9 +563,9 @@ mod tests {
             .iter()
             .take(if cfg!(miri) { 10 } else { sources.len() })
         {
-            assert_eq!(escape(&source), serde_json::to_string(&source).unwrap());
+            assert_eq!(escape(source), serde_json::to_string(&source).unwrap());
             let mut output = String::new();
-            escape_into(&source, unsafe { output.as_mut_vec() });
+            escape_into(source, unsafe { output.as_mut_vec() });
             assert_eq!(output, serde_json::to_string(&source).unwrap());
         }
     }
@@ -603,10 +603,8 @@ mod tests {
         for entry in dir {
             let p = entry?;
             let metadata = std::fs::metadata(p.path())?;
-            if metadata.is_file() {
-                if f(p.path()) {
-                    sources.push(std::fs::read_to_string(p.path())?);
-                }
+            if metadata.is_file() && f(p.path()) {
+                sources.push(std::fs::read_to_string(p.path())?);
             }
             if metadata.is_dir() {
                 read_dir_recursive(p.path(), sources, f)?;

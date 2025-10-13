@@ -42,8 +42,8 @@ impl Simd for Simd128u {
 
     fn le(&self, rhs: &Self) -> Self::Mask {
         let mut mask = [0u8; 16];
-        for i in 0..Self::LANES {
-            mask[i] = if self.0[i] <= rhs.0[i] { 1 } else { 0 };
+        for (i, item) in mask.iter_mut().enumerate().take(Self::LANES) {
+            *item = if self.0[i] <= rhs.0[i] { 1 } else { 0 };
         }
         Mask128(mask)
     }
@@ -76,8 +76,8 @@ impl BitAnd for Mask128 {
 
     fn bitand(self, rhs: Self) -> Self::Output {
         let mut result = [0u8; 16];
-        for i in 0..16 {
-            result[i] = self.0[i] & rhs.0[i];
+        for (i, item) in result.iter_mut().enumerate() {
+            *item = self.0[i] & rhs.0[i];
         }
         Mask128(result)
     }
@@ -88,8 +88,8 @@ impl BitOr for Mask128 {
 
     fn bitor(self, rhs: Self) -> Self::Output {
         let mut result = [0u8; 16];
-        for i in 0..16 {
-            result[i] = self.0[i] | rhs.0[i];
+        for (i, item) in result.iter_mut().enumerate() {
+            *item = self.0[i] | rhs.0[i];
         }
         Mask128(result)
     }
