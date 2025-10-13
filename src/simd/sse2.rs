@@ -220,19 +220,19 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
             let v = {
                 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
                 {
-                    std::ptr::copy_nonoverlapping(sptr, placeholder.as_mut_ptr(), nb);
-                    Simd128u::loadu(placeholder.as_ptr())
+                    std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
+                    Simd128u::loadu(placeholder[..].as_ptr())
                 }
                 #[cfg(any(target_os = "linux", target_os = "macos"))]
                 {
                     if check_cross_page(sptr, LANES) {
-                        std::ptr::copy_nonoverlapping(sptr, placeholder.as_mut_ptr(), nb);
-                        Simd128u::loadu(placeholder.as_ptr())
+                        std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
+                        Simd128u::loadu(placeholder[..].as_ptr())
                     } else {
                         #[cfg(any(debug_assertions, miri))]
                         {
-                            std::ptr::copy_nonoverlapping(sptr, placeholder.as_mut_ptr(), nb);
-                            Simd128u::loadu(placeholder.as_ptr())
+                            std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
+                            Simd128u::loadu(placeholder[..].as_ptr())
                         }
                         #[cfg(not(any(debug_assertions, miri)))]
                         {
