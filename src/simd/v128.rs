@@ -1,9 +1,13 @@
 use std::ops::{BitAnd, BitOr, BitOrAssign};
 
+use crate::simd::traits::BitMask;
+
 use super::{Mask, Simd, util::escape_unchecked};
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use super::util::check_cross_page;
+
+const LANES: usize = 16;
 
 #[derive(Debug)]
 pub struct Simd128u([u8; 16]);
@@ -124,17 +128,17 @@ pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
         dptr = dptr.add(1);
 
         // Main loop: process LANES bytes at a time
-        while nb >= Simd128u::LANES {
+        while nb >= LANES {
             let v = Simd128u::loadu(sptr);
             v.storeu(dptr);
             let mask = escaped_mask(v);
 
             if mask == 0 {
-                nb -= Simd128u::LANES;
-                dptr = dptr.add(Simd128u::LANES);
-                sptr = sptr.add(Simd128u::LANES);
+                nb -= LANES;
+                dptr = dptr.add(LANES);
+                sptr = sptr.add(LANES);
             } else {
-                let cn = mask.trailing_zeros() as usize;
+                let cn = mask.first_offset();
                 nb -= cn;
                 dptr = dptr.add(cn);
                 sptr = sptr.add(cn);
@@ -143,27 +147,29 @@ pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
         }
 
         // Handle remaining bytes
-        let mut placeholder: [u8; 16] = [0; 16];
+        let mut placeholder: [u8; LANES] = [0; LANES];
         while nb > 0 {
-            #[cfg(not(any(target_os = "linux", target_os = "macos")))]
             let v = {
-                std::ptr::copy_nonoverlapping(sptr, placeholder.as_mut_ptr(), nb);
-                Simd128u::loadu(placeholder.as_ptr())
-            };
-            #[cfg(any(target_os = "linux", target_os = "macos"))]
-            let v = {
-                if check_cross_page(sptr, Simd128u::LANES) {
+                #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+                {
                     std::ptr::copy_nonoverlapping(sptr, placeholder.as_mut_ptr(), nb);
                     Simd128u::loadu(placeholder.as_ptr())
-                } else {
-                    #[cfg(any(debug_assertions, miri))]
-                    {
+                }
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                {
+                    if check_cross_page(sptr, Simd128u::LANES) {
                         std::ptr::copy_nonoverlapping(sptr, placeholder.as_mut_ptr(), nb);
                         Simd128u::loadu(placeholder.as_ptr())
-                    }
-                    #[cfg(not(any(debug_assertions, miri)))]
-                    {
-                        Simd128u::loadu(sptr)
+                    } else {
+                        #[cfg(any(debug_assertions, miri))]
+                        {
+                            std::ptr::copy_nonoverlapping(sptr, placeholder.as_mut_ptr(), nb);
+                            Simd128u::loadu(placeholder.as_ptr())
+                        }
+                        #[cfg(not(any(debug_assertions, miri)))]
+                        {
+                            Simd128u::loadu(sptr)
+                        }
                     }
                 }
             };
@@ -177,7 +183,7 @@ pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 dptr = dptr.add(nb);
                 break;
             } else {
-                let cn = mask.trailing_zeros() as usize;
+                let cn = mask.first_offset();
                 nb -= cn;
                 dptr = dptr.add(cn);
                 sptr = sptr.add(cn);
