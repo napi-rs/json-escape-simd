@@ -44,14 +44,6 @@ impl Simd for Simd128u {
         }
         Mask128(mask)
     }
-
-    fn gt(&self, rhs: &Self) -> Self::Mask {
-        let mut mask = [0u8; 16];
-        for i in 0..Self::LANES {
-            mask[i] = if self.0[i] > rhs.0[i] { 1 } else { 0 };
-        }
-        Mask128(mask)
-    }
 }
 
 impl Mask for Mask128 {

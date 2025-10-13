@@ -1,6 +1,6 @@
 use std::ops::{BitAnd, BitOr, BitOrAssign};
 
-/// Portbal SIMD traits
+/// Portable SIMD traits
 pub trait Simd: Sized {
     const LANES: usize;
 
@@ -29,15 +29,11 @@ pub trait Simd: Sized {
 
     fn splat(elem: Self::Element) -> Self;
 
-    #[allow(unused)]
-    /// greater than
-    fn gt(&self, rhs: &Self) -> Self::Mask;
-
     /// less or equal
     fn le(&self, rhs: &Self) -> Self::Mask;
 }
 
-/// Portbal SIMD mask traits
+/// Portable SIMD mask traits
 pub trait Mask: Sized + BitOr<Self> + BitOrAssign + BitAnd<Self> {
     type Element;
     type BitMask: BitMask;

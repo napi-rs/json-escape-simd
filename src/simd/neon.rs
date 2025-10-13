@@ -36,12 +36,6 @@ impl Simd for Simd128u {
     fn le(&self, lhs: &Self) -> Self::Mask {
         unsafe { Mask128(vcleq_u8(self.0, lhs.0)) }
     }
-
-    // greater than
-    #[inline(always)]
-    fn gt(&self, lhs: &Self) -> Self::Mask {
-        unsafe { Mask128(vcgtq_u8(self.0, lhs.0)) }
-    }
 }
 
 #[derive(Debug)]

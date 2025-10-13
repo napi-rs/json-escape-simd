@@ -84,9 +84,4 @@ impl Simd for Simd512u {
     fn le(&self, rhs: &Self) -> Self::Mask {
         unsafe { Mask512(_mm512_cmple_epu8_mask(self.0, rhs.0)) }
     }
-
-    #[inline(always)]
-    fn gt(&self, rhs: &Self) -> Self::Mask {
-        unsafe { Mask512(_mm512_cmpgt_epu8_mask(self.0, rhs.0)) }
-    }
 }

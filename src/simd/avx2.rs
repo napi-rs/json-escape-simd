@@ -92,9 +92,4 @@ impl Simd for Simd256u {
             Mask256(eq)
         }
     }
-
-    #[inline(always)]
-    fn gt(&self, _rhs: &Self) -> Self::Mask {
-        todo!()
-    }
 }
