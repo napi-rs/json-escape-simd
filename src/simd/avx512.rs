@@ -212,25 +212,27 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
         // Handle remaining bytes
         let mut placeholder: [u8; LANES] = [0; LANES];
         while nb > 0 {
-            #[cfg(not(any(target_os = "linux", target_os = "macos")))]
             let v = {
-                std::ptr::copy_nonoverlapping(sptr, placeholder.as_mut_ptr(), nb);
-                Simd512u::loadu(placeholder.as_ptr())
-            };
-            #[cfg(any(target_os = "linux", target_os = "macos"))]
-            let v = {
-                if check_cross_page(sptr, LANES) {
-                    std::ptr::copy_nonoverlapping(sptr, placeholder.as_mut_ptr(), nb);
-                    Simd512u::loadu(placeholder.as_ptr())
-                } else {
-                    #[cfg(any(debug_assertions, miri))]
-                    {
-                        std::ptr::copy_nonoverlapping(sptr, placeholder.as_mut_ptr(), nb);
-                        Simd512u::loadu(placeholder.as_ptr())
-                    }
-                    #[cfg(not(any(debug_assertions, miri)))]
-                    {
-                        Simd512u::loadu(sptr)
+                #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+                {
+                    std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
+                    Simd512u::loadu(placeholder[..].as_ptr())
+                }
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                {
+                    if check_cross_page(sptr, LANES) {
+                        std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
+                        Simd512u::loadu(placeholder[..].as_ptr())
+                    } else {
+                        #[cfg(any(debug_assertions, miri))]
+                        {
+                            std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
+                            Simd512u::loadu(placeholder[..].as_ptr())
+                        }
+                        #[cfg(not(any(debug_assertions, miri)))]
+                        {
+                            Simd512u::loadu(sptr)
+                        }
                     }
                 }
             };

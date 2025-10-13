@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'yarn'
+          cache: "yarn"
       - name: Install dependencies
         run: yarn install
       - name: Download fixtures
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'yarn'
+          cache: "yarn"
       - name: Install dependencies
         run: yarn install
       - name: Download fixtures
@@ -69,6 +69,110 @@ jobs:
         run: cargo miri test
         env:
           MIRIFLAGS: "-Zmiri-disable-isolation"
+
+  asan:
+    name: ASAN - Linux-x86_64 - ${{ matrix.asan.flag }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        asan:
+          - flag: sanitizer=address
+            options: detect_leaks=1 detect_stack_use_after_return=1
+          - flag: sanitizer=memory
+            options: ""
+          - flag: sanitizer=safestack
+            options: ""
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: "yarn"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - name: Install dependencies
+        run: yarn install --immutable --mode=skip-build
+
+      - name: Download fixtures
+        run: node download-fixtures.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test with ASAN
+        run: cargo test --tests --target x86_64-unknown-linux-gnu
+        env:
+          RUST_TARGET: x86_64-unknown-linux-gnu
+          RUST_BACKTRACE: 1
+          RUSTFLAGS: "-Z${{ matrix.asan.flag }}"
+          ASAN_OPTIONS: ${{ matrix.asan.options }}
+          CARGO_UNSTABLE_BUILD_STD: std,panic_abort
+
+
+  asan-win32:
+    name: ASAN - Windows-x86_64
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: "yarn"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - name: Install dependencies
+        run: yarn install --immutable --mode=skip-build
+
+      - name: Download fixtures
+        run: node download-fixtures.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test with ASAN (Windows)
+        shell: pwsh
+        run: |
+          # Set ASAN environment variables for Windows
+          $env:ASAN_OPTIONS = "windows_hook_rtl_allocators=true:detect_leaks=0:print_stats=1:check_initialization_order=true:strict_string_checks=true"
+
+          # Find and set the path to the ASAN runtime DLL
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $asanDllPath = Get-ChildItem -Path "$vsPath\VC\Tools\MSVC" -Recurse -Filter "clang_rt.asan_dynamic-x86_64.dll" | Select-Object -First 1
+          if ($asanDllPath) {
+            $env:PATH = "$($asanDllPath.DirectoryName);$env:PATH"
+            Write-Host "Found ASAN DLL at: $($asanDllPath.FullName)"
+          }
+          cargo test --tests --target x86_64-pc-windows-msvc
+        env:
+          RUSTFLAGS: -Zsanitizer=address
+          RUST_BACKTRACE: 1
+          CARGO_PROFILE_DEV_OPT_LEVEL: 1
+          CARGO_UNSTABLE_BUILD_STD: std,panic_abort
+
+      - name: Upload ASAN logs (Windows)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-asan-logs
+          path: |
+            asan.log*
+            *.asan.log
+
   bench:
     strategy:
       matrix:
@@ -94,7 +198,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'yarn'
+          cache: "yarn"
       - name: Install dependencies
         run: yarn install
       - name: Download fixtures
@@ -104,4 +208,11 @@ jobs:
       - name: Run benchmarks
         run: cargo bench
         env:
-          RUSTFLAGS: '-C target-cpu=native'
+          RUSTFLAGS: "-C target-cpu=native"
+
+  done:
+    runs-on: ubuntu-latest
+    needs: [test, miri, asan, asan-win32, bench]
+    steps:
+      - run: exit 1
+        if: ${{ always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
