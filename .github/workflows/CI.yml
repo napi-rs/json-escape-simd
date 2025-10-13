@@ -69,6 +69,79 @@ jobs:
         run: cargo miri test
         env:
           MIRIFLAGS: "-Zmiri-disable-isolation"
+
+  asan:
+    name: ASAN - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'yarn'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - name: Install dependencies
+        run: yarn install --immutable --mode=skip-build
+
+      - name: Download fixtures
+        run: node download-fixtures.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test with ASAN (Linux)
+        if: matrix.os == 'ubuntu-24.04'
+        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
+        env:
+          RUST_TARGET: x86_64-unknown-linux-gnu
+          RUST_BACKTRACE: 1
+          RUSTFLAGS: -Z sanitizer=address
+          ASAN_OPTIONS: detect_leaks=1
+          CARGO_UNSTABLE_BUILD_STD: std,panic_abort
+
+      - name: Test with ASAN (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          # Set ASAN environment variables for Windows
+          $env:ASAN_OPTIONS = "windows_hook_rtl_allocators=true:detect_leaks=0:print_stats=1:check_initialization_order=true:strict_string_checks=true"
+
+          # Find and set the path to the ASAN runtime DLL
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $asanDllPath = Get-ChildItem -Path "$vsPath\VC\Tools\MSVC" -Recurse -Filter "clang_rt.asan_dynamic-x86_64.dll" | Select-Object -First 1
+          if ($asanDllPath) {
+            $env:PATH = "$($asanDllPath.DirectoryName);$env:PATH"
+            Write-Host "Found ASAN DLL at: $($asanDllPath.FullName)"
+          }
+          cargo test --target x86_64-pc-windows-msvc
+        env:
+          RUSTFLAGS: -Zsanitizer=address
+          RUSTDOCFLAGS: -Zsanitizer=address
+          RUST_BACKTRACE: 1
+          CARGO_PROFILE_DEV_OPT_LEVEL: 1
+          CARGO_UNSTABLE_BUILD_STD: std,panic_abort
+
+      - name: Upload ASAN logs (Windows)
+        if: failure() && matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-asan-logs
+          path: |
+            asan.log*
+            *.asan.log
+
   bench:
     strategy:
       matrix:
