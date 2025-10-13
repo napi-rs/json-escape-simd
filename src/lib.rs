@@ -326,13 +326,11 @@ pub fn escape(value: &str) -> String {
     unsafe { String::from_utf8_unchecked(buf) }
 }
 
-pub fn escape_into<S: AsRef<str>>(value: S, dst: &mut Vec<u8>) -> usize {
+/// # Panics
+///
+/// Panics if the buffer is not large enough. Allocate enough capacity for dst.
+pub fn escape_into<S: AsRef<str>>(value: S, dst: &mut Vec<u8>) {
     let value = value.as_ref();
-    let needed_capacity = value.len() * 6 + 32 + 3;
-
-    // Ensure we have enough capacity
-    dst.reserve(needed_capacity);
-
     let old_len = dst.len();
 
     // SAFETY: We've reserved enough capacity above, and format_string will
@@ -343,7 +341,6 @@ pub fn escape_into<S: AsRef<str>>(value: S, dst: &mut Vec<u8>) -> usize {
             std::slice::from_raw_parts_mut(dst.as_mut_ptr().add(old_len), dst.capacity() - old_len);
         let cnt = format_string(value, spare);
         dst.set_len(old_len + cnt);
-        cnt
     }
 }
 
@@ -572,7 +569,7 @@ mod tests {
             .take(if cfg!(miri) { 10 } else { sources.len() })
         {
             assert_eq!(escape(source), serde_json::to_string(&source).unwrap());
-            let mut output = String::new();
+            let mut output = String::with_capacity(source.len() * 6 + 32 + 3);
             escape_into(source, unsafe { output.as_mut_vec() });
             assert_eq!(output, serde_json::to_string(&source).unwrap());
         }
