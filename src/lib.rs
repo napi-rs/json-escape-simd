@@ -292,9 +292,21 @@ const NEED_ESCAPED: [u8; 256] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    not(feature = "codspeed")
+))]
 static COMPUTE_LANES: std::sync::Once = std::sync::Once::new();
-static mut LANES: usize = 16;
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    not(feature = "codspeed")
+))]
+static mut LANES: usize = 32;
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "codspeed"))]
+const LANES: usize = 32;
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+const LANES: usize = 16;
 
 // only check the src length.
 #[inline(always)]
@@ -443,7 +455,10 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
 
     let mut v_generic: simd::v128::Simd128u;
 
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[cfg(all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        not(feature = "codspeed")
+    ))]
     COMPUTE_LANES.call_once(|| {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {
@@ -451,9 +466,9 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 unsafe {
                     LANES = simd::avx512::Simd512u::LANES;
                 }
-            } else if is_x86_feature_detected!("avx2") {
+            } else if is_x86_feature_detected!("sse2") {
                 unsafe {
-                    LANES = simd::avx2::Simd256u::LANES;
+                    LANES = simd::sse2::Simd128u::LANES;
                 }
             }
         }
