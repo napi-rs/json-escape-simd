@@ -41,6 +41,10 @@ fn get_affine_sources() -> Vec<String> {
 }
 
 fn run_benchmarks(c: &mut Criterion, sources: &[String], prefix: &str) {
+    let first = &sources[0];
+    assert_eq!(escape(first), sonic_rs::to_string(first).unwrap());
+    assert_eq!(escape(first), serde_json::to_string(first).unwrap());
+
     c.bench_function(&format!("{} escape simd", prefix), |b| {
         b.iter(|| {
             for source in sources {
