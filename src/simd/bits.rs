@@ -8,11 +8,6 @@ macro_rules! impl_bits {
                 const LEN: usize = std::mem::size_of::<$ty>() * 8;
 
                 #[inline]
-                fn before(&self, rhs: &Self) -> bool {
-                    (self.as_little_endian()  & rhs.as_little_endian().wrapping_sub(1)) != 0
-                }
-
-                #[inline]
                 fn first_offset(&self) -> usize {
                     self.as_little_endian().trailing_zeros() as usize
                 }
@@ -73,11 +68,6 @@ impl BitMask for NeonBits {
     #[inline]
     fn first_offset(&self) -> usize {
         (self.as_little_endian().0.trailing_zeros() as usize) >> 2
-    }
-
-    #[inline]
-    fn before(&self, rhs: &Self) -> bool {
-        (self.as_little_endian().0 & rhs.as_little_endian().0.wrapping_sub(1)) != 0
     }
 
     #[inline]

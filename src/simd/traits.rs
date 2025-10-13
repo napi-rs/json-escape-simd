@@ -8,18 +8,6 @@ pub trait Simd: Sized {
     type Mask: Mask;
 
     /// # Safety
-    unsafe fn from_slice_unaligned_unchecked(slice: &[u8]) -> Self {
-        debug_assert!(slice.len() >= Self::LANES);
-        unsafe { Self::loadu(slice.as_ptr()) }
-    }
-
-    /// # Safety
-    unsafe fn write_to_slice_unaligned_unchecked(&self, slice: &mut [u8]) {
-        debug_assert!(slice.len() >= Self::LANES);
-        unsafe { self.storeu(slice.as_mut_ptr()) }
-    }
-
-    /// # Safety
     unsafe fn loadu(ptr: *const u8) -> Self;
 
     /// # Safety
@@ -48,10 +36,6 @@ pub trait BitMask {
 
     /// get the offset of the first `1` bit.
     fn first_offset(&self) -> usize;
-
-    #[allow(unused)]
-    /// check if this bitmask is before the other bitmask.
-    fn before(&self, rhs: &Self) -> bool;
 
     /// convert bitmask as little endian
     fn as_little_endian(&self) -> Self;
