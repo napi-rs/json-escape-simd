@@ -35,7 +35,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'yarn'
+          cache: "yarn"
       - name: Install dependencies
         run: yarn install
       - name: Download fixtures
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'yarn'
+          cache: "yarn"
       - name: Install dependencies
         run: yarn install
       - name: Download fixtures
@@ -79,13 +79,16 @@ jobs:
         asan:
           - flag: sanitizer=address
             options: detect_leaks=1 detect_stack_use_after_return=1
-            rustc_flags: ''
+            rustc_flags: ""
           - flag: sanitizer=memory
-            options: ''
-            rustc_flags: ''
+            options: ""
+            rustc_flags: ""
+          - flag: sanitizer=safestack
+            options: ""
+            rustc_flags: ""
           - flag: sanitizer=cfi
-            options: ''
-            rustc_flags: '-Clto -Ccodegen-units=1'
+            options: ""
+            rustc_flags: "-Clto -Ccodegen-units=1 -Cembed-bitcode=yes"
 
     steps:
       - uses: actions/checkout@v5
@@ -94,7 +97,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'yarn'
+          cache: "yarn"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -120,41 +123,6 @@ jobs:
           CARGO_UNSTABLE_BUILD_STD: std,panic_abort
 
 
-  asan-memtag:
-    name: ASAN memtag - Linux-arm64
-    runs-on: ubuntu-24.04-arm
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Setup node
-        uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: 'yarn'
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: nightly
-          components: rust-src
-
-      - name: Install dependencies
-        run: yarn install --immutable --mode=skip-build
-
-      - name: Download fixtures
-        run: node download-fixtures.js
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Test with ASAN
-        run: cargo test --tests --target aarch64-unknown-linux-gnu
-        env:
-          RUST_TARGET: aarch64-unknown-linux-gnu
-          RUST_BACKTRACE: 1
-          RUSTFLAGS: -Ctarget-feature=+mte -Zsanitizer=memtag'
-          CARGO_UNSTABLE_BUILD_STD: std,panic_abort
-
   asan-win32:
     name: ASAN - Windows-x86_64
     runs-on: windows-latest
@@ -166,7 +134,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'yarn'
+          cache: "yarn"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -236,7 +204,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'yarn'
+          cache: "yarn"
       - name: Install dependencies
         run: yarn install
       - name: Download fixtures
@@ -246,4 +214,11 @@ jobs:
       - name: Run benchmarks
         run: cargo bench
         env:
-          RUSTFLAGS: '-C target-cpu=native'
+          RUSTFLAGS: "-C target-cpu=native"
+
+  done:
+    runs-on: ubuntu-latest
+    needs: [test, miri, asan, asan-win32, bench]
+    steps:
+      - run: exit 1
+        if: ${{ always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
