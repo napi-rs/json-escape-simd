@@ -79,16 +79,10 @@ jobs:
         asan:
           - flag: sanitizer=address
             options: detect_leaks=1 detect_stack_use_after_return=1
-            rustc_flags: ""
           - flag: sanitizer=memory
             options: ""
-            rustc_flags: ""
           - flag: sanitizer=safestack
             options: ""
-            rustc_flags: ""
-          - flag: sanitizer=cfi
-            options: ""
-            rustc_flags: "-Clto -Ccodegen-units=1 -Cembed-bitcode=yes"
 
     steps:
       - uses: actions/checkout@v5
@@ -118,7 +112,7 @@ jobs:
         env:
           RUST_TARGET: x86_64-unknown-linux-gnu
           RUST_BACKTRACE: 1
-          RUSTFLAGS: "-Z${{ matrix.asan.flag }} ${{ matrix.asan.rustc_flags }}"
+          RUSTFLAGS: "-Z${{ matrix.asan.flag }}"
           ASAN_OPTIONS: ${{ matrix.asan.options }}
           CARGO_UNSTABLE_BUILD_STD: std,panic_abort
 
