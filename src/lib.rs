@@ -521,8 +521,16 @@ mod tests {
         for i in 0u8..32 {
             let s = String::from_utf8(vec![i]).unwrap();
             let result = escape(&s);
-            let expected = serde_json::to_string(&s).unwrap();
-            assert_eq!(result, expected, "Failed for byte 0x{:02x}", i);
+            let expected = String::from_utf8(QUOTE_TAB[i as usize].1.to_vec())
+                .unwrap()
+                .trim_end_matches('\0')
+                .to_string();
+            assert_eq!(
+                result,
+                format!("\"{}\"", expected),
+                "Failed for byte 0x{:02x}",
+                i
+            );
         }
     }
 

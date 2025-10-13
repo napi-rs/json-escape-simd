@@ -161,7 +161,7 @@ pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
                         std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
                         Simd128u::loadu(placeholder[..].as_ptr())
                     } else {
-                        #[cfg(any(debug_assertions, miri))]
+                        #[cfg(any(debug_assertions, miri, feature = "asan"))]
                         {
                             std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
                             Simd128u::loadu(placeholder[..].as_ptr())

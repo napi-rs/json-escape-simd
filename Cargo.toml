@@ -18,6 +18,7 @@ path = "examples/escape.rs"
 
 [features]
 codspeed = ["criterion2/codspeed"]
+asan = [] # for ASAN
 
 [[bench]]
 name = "escape"
