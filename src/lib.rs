@@ -427,16 +427,7 @@ macro_rules! load_v {
                 std::ptr::copy_nonoverlapping($sptr, $placeholder[..].as_mut_ptr(), $nb);
                 load($placeholder[..].as_ptr())
             } else {
-                #[cfg(not(debug_assertions))]
-                {
-                    // disable memory sanitizer here
-                    load($sptr)
-                }
-                #[cfg(debug_assertions)]
-                {
-                    std::ptr::copy_nonoverlapping($sptr, $placeholder[..].as_mut_ptr(), $nb);
-                    load($placeholder[..].as_ptr())
-                }
+                load($sptr)
             }
         }
     }};
@@ -614,7 +605,6 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 }
             } else if has_avx2 {
                 const LANES: usize = simd::avx2::Simd256u::LANES;
-                // Scratch buffer reused for mask materialisation; stay uninitialised.
                 let mut placeholder: [u8; LANES] = [0; LANES];
                 while nb > 0 {
                     v_avx2 = load_v!(placeholder, sptr, nb);
