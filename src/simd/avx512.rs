@@ -211,8 +211,9 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
 
         // Handle remaining bytes
         let mut placeholder: [u8; LANES] = [0; LANES];
+        let mut v;
         while nb > 0 {
-            let v = {
+            v = {
                 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
                 {
                     std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
@@ -237,7 +238,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 }
             };
 
-            v.storeu(dptr);
+            v.storeu(std::slice::from_raw_parts_mut(dptr, LANES).as_mut_ptr());
             let mask = escaped_mask(v).clear_high_bits(LANES - nb);
 
             if mask.all_zero() {
