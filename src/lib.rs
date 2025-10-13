@@ -303,7 +303,7 @@ static COMPUTE_LANES: std::sync::Once = std::sync::Once::new();
 ))]
 static mut LANES: usize = simd::avx2::Simd256u::LANES;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "codspeed"))]
-const LANES: usize = 32;
+const LANES: usize = simd::avx2::Simd256u::LANES;
 
 #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
 const LANES: usize = 16;
@@ -466,7 +466,7 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 unsafe {
                     LANES = simd::avx512::Simd512u::LANES;
                 }
-            } else if is_x86_feature_detected!("sse2") {
+            } else if !is_x86_feature_detected!("avx2") {
                 unsafe {
                     LANES = simd::sse2::Simd128u::LANES;
                 }
