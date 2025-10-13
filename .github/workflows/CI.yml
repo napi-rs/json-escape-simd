@@ -71,13 +71,17 @@ jobs:
           MIRIFLAGS: "-Zmiri-disable-isolation"
 
   asan:
-    name: ASAN - ${{ matrix.os }} - ${{ matrix.asan }}
+    name: ASAN - ${{ matrix.os }} - ${{ matrix.asan.flag }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-latest]
-        asan: ['sanitizer=address', 'sanitizer=memory']
+        asan:
+          - flag: sanitizer=address
+            options: detect_leaks=1 detect_stack_use_after_return=1
+          - flag: sanitizer=memory
+            options: ''
 
     steps:
       - uses: actions/checkout@v5
@@ -108,8 +112,8 @@ jobs:
         env:
           RUST_TARGET: x86_64-unknown-linux-gnu
           RUST_BACKTRACE: 1
-          RUSTFLAGS: "-Z ${{ matrix.asan }}"
-          ASAN_OPTIONS: detect_leaks=1 detect_stack_use_after_return=1
+          RUSTFLAGS: "-Z${{ matrix.asan.flag }}"
+          ASAN_OPTIONS: ${{ matrix.asan.options }}
           CARGO_UNSTABLE_BUILD_STD: std,panic_abort
 
       - name: Test with ASAN (Windows)
@@ -128,7 +132,7 @@ jobs:
           }
           cargo test --target x86_64-pc-windows-msvc
         env:
-          RUSTFLAGS: -Zsanitizer=address
+          RUSTFLAGS: -Z${{ matrix.asan.flag }}
           RUST_BACKTRACE: 1
           CARGO_PROFILE_DEV_OPT_LEVEL: 1
           CARGO_UNSTABLE_BUILD_STD: std,panic_abort
