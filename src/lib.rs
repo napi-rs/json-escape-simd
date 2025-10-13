@@ -339,7 +339,7 @@ fn check_cross_page(ptr: *const u8, step: usize) -> bool {
     ((ptr as usize & (page_size - 1)) + step) > page_size
 }
 
-#[inline]
+#[inline(always)]
 fn escaped_mask_generic(v: simd::v128::Simd128u) -> u16 {
     use simd::v128::Simd128u as u8x16;
 
