@@ -111,7 +111,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Test with ASAN
-        run: cargo test --tests --target x86_64-unknown-linux-gnu
+        run: cargo test --tests --target x86_64-unknown-linux-gnu --features asan
         env:
           RUST_TARGET: x86_64-unknown-linux-gnu
           RUST_BACKTRACE: 1
