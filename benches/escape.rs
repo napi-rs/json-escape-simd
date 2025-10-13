@@ -2,9 +2,11 @@ use std::{fs, hint::black_box};
 
 use criterion::{Criterion, criterion_group, criterion_main};
 
+#[cfg(not(feature = "codspeed"))]
 use generic::escape_generic;
 use json_escape_simd::escape;
 
+#[cfg(not(feature = "codspeed"))]
 mod generic;
 
 fn get_rxjs_sources() -> Vec<String> {
