@@ -17,16 +17,11 @@ defaults:
     shell: bash
 
 jobs:
-  benchmark:
-    name: Benchmark
-    runs-on: ubuntu-latest
+  build:
+    name: Prepare
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v5
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-gnu
 
       - uses: actions/setup-node@v5
         with:
@@ -38,18 +33,43 @@ jobs:
         run: node download-fixtures.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Fixtures
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-fixtures
+          path: fixtures
+      - name: Upload rxjs
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-rxjs
+          path: node_modules/rxjs
 
+  run:
+    runs-on: codspeed-macro
+    needs: build
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-codspeed
-
       - name: Build benchmark
-        run: cargo codspeed build --features codspeed
-
+        run: cargo codspeed build --measurement-mode=walltime --features codspeed
+      - name: Download fixtures
+        uses: actions/download-artifact@v5
+        with:
+          name: benchmark-fixtures
+          path: fixtures
+      - name: Download rxjs
+        uses: actions/download-artifact@v5
+        with:
+          name: benchmark-rxjs
+          path: node_modules/rxjs
       - name: Run benchmark
         uses: CodSpeedHQ/action@v4
         timeout-minutes: 15
         with:
           run: cargo codspeed run
-          mode: instrumentation
+          mode: walltime
           token: ${{ secrets.CODSPEED_TOKEN }}
