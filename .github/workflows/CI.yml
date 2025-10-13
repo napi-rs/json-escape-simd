@@ -71,17 +71,21 @@ jobs:
           MIRIFLAGS: "-Zmiri-disable-isolation"
 
   asan:
-    name: ASAN - ${{ matrix.os }} - ${{ matrix.asan.flag }}
-    runs-on: ${{ matrix.os }}
+    name: ASAN - Linux-x86_64 - ${{ matrix.asan.flag }}
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-latest]
         asan:
           - flag: sanitizer=address
             options: detect_leaks=1 detect_stack_use_after_return=1
+            rustc_flags: ''
           - flag: sanitizer=memory
             options: ''
+            rustc_flags: ''
+          - flag: sanitizer=cfi
+            options: ''
+            rustc_flags: '-Clto'
 
     steps:
       - uses: actions/checkout@v5
@@ -106,18 +110,79 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Test with ASAN (Linux)
-        if: matrix.os == 'ubuntu-24.04'
+      - name: Test with ASAN
         run: cargo test --tests --target x86_64-unknown-linux-gnu
         env:
           RUST_TARGET: x86_64-unknown-linux-gnu
           RUST_BACKTRACE: 1
-          RUSTFLAGS: "-Z${{ matrix.asan.flag }}"
+          RUSTFLAGS: "-Z${{ matrix.asan.flag }} ${{ matrix.asan.rustc_flags }}"
           ASAN_OPTIONS: ${{ matrix.asan.options }}
           CARGO_UNSTABLE_BUILD_STD: std,panic_abort
 
+
+  asan-memtag:
+    name: ASAN memtag - Linux-arm64
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'yarn'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - name: Install dependencies
+        run: yarn install --immutable --mode=skip-build
+
+      - name: Download fixtures
+        run: node download-fixtures.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test with ASAN
+        run: cargo test --tests --target aarch64-unknown-linux-gnu
+        env:
+          RUST_TARGET: aarch64-unknown-linux-gnu
+          RUST_BACKTRACE: 1
+          RUSTFLAGS: -C target-feature="+mte" -Zsanitizer=memtag
+          CARGO_UNSTABLE_BUILD_STD: std,panic_abort
+
+  asan-win32:
+    name: ASAN - Windows-x86_64
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'yarn'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - name: Install dependencies
+        run: yarn install --immutable --mode=skip-build
+
+      - name: Download fixtures
+        run: node download-fixtures.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Test with ASAN (Windows)
-        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           # Set ASAN environment variables for Windows
@@ -132,13 +197,13 @@ jobs:
           }
           cargo test --tests --target x86_64-pc-windows-msvc
         env:
-          RUSTFLAGS: -Z${{ matrix.asan.flag }}
+          RUSTFLAGS: -Zsanitizer=address
           RUST_BACKTRACE: 1
           CARGO_PROFILE_DEV_OPT_LEVEL: 1
           CARGO_UNSTABLE_BUILD_STD: std,panic_abort
 
       - name: Upload ASAN logs (Windows)
-        if: failure() && matrix.os == 'windows-latest'
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: windows-asan-logs
