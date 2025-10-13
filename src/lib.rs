@@ -453,6 +453,13 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     let mut v_avx512: simd::avx512::Simd512u;
 
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let has_avx512 = is_x86_feature_detected!("avx512f");
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let has_avx2 = is_x86_feature_detected!("avx2");
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let has_sse2 = is_x86_feature_detected!("sse2");
+
     let mut v_generic: simd::v128::Simd128u;
 
     #[cfg(all(
@@ -504,21 +511,21 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
             }
             #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
             {
-                if is_x86_feature_detected!("avx512f") {
+                if has_avx512 {
                     v_avx512 = load(sptr);
                     v_avx512.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
                         dptr, LANES,
                     ));
                     let mask = escaped_mask_avx512(v_avx512);
                     escape!(mask, nb, dptr, sptr);
-                } else if is_x86_feature_detected!("avx2") {
+                } else if has_avx2 {
                     v_avx2 = load(sptr);
                     v_avx2.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
                         dptr, LANES,
                     ));
                     let mask = escaped_mask_avx2(v_avx2);
                     escape!(mask, nb, dptr, sptr);
-                } else if is_x86_feature_detected!("sse2") {
+                } else if has_sse2 {
                     v_sse2 = load(sptr);
                     v_sse2.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
                         dptr, LANES,
@@ -592,7 +599,7 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
         }
         #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
         {
-            if is_x86_feature_detected!("avx512f") {
+            if has_avx512 {
                 const LANES: usize = simd::avx512::Simd512u::LANES;
                 // Scratch buffer reused for mask materialisation; stay uninitialised.
                 #[cfg(not(miri))]
@@ -617,7 +624,7 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
                         escape_unchecked(&mut sptr, &mut nb, &mut dptr);
                     }
                 }
-            } else if is_x86_feature_detected!("avx2") {
+            } else if has_avx2 {
                 const LANES: usize = simd::avx2::Simd256u::LANES;
                 // Scratch buffer reused for mask materialisation; stay uninitialised.
                 #[cfg(not(miri))]
@@ -642,7 +649,7 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
                         escape_unchecked(&mut sptr, &mut nb, &mut dptr);
                     }
                 }
-            } else if is_x86_feature_detected!("sse2") {
+            } else if has_sse2 {
                 const LANES: usize = simd::sse2::Simd128u::LANES;
                 // Scratch buffer reused for mask materialisation; stay uninitialised.
                 #[cfg(not(miri))]
