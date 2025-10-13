@@ -521,8 +521,16 @@ mod tests {
         for i in 0u8..32 {
             let s = String::from_utf8(vec![i]).unwrap();
             let result = escape(&s);
-            let expected = serde_json::to_string(&s).unwrap();
-            assert_eq!(result, expected, "Failed for byte 0x{:02x}", i);
+            let expected = String::from_utf8(QUOTE_TAB[i as usize].1.to_vec())
+                .unwrap()
+                .trim_end_matches('\0')
+                .to_string();
+            assert_eq!(
+                result,
+                format!("\"{}\"", expected),
+                "Failed for byte 0x{:02x}",
+                i
+            );
         }
     }
 
@@ -563,9 +571,9 @@ mod tests {
             .iter()
             .take(if cfg!(miri) { 10 } else { sources.len() })
         {
-            assert_eq!(escape(source), serde_json::to_string(&source).unwrap());
+            assert_eq!(escape(&source), serde_json::to_string(&source).unwrap());
             let mut output = String::new();
-            escape_into(source, unsafe { output.as_mut_vec() });
+            escape_into(&source, unsafe { output.as_mut_vec() });
             assert_eq!(output, serde_json::to_string(&source).unwrap());
         }
     }
@@ -603,8 +611,10 @@ mod tests {
         for entry in dir {
             let p = entry?;
             let metadata = std::fs::metadata(p.path())?;
-            if metadata.is_file() && f(p.path()) {
-                sources.push(std::fs::read_to_string(p.path())?);
+            if metadata.is_file() {
+                if f(p.path()) {
+                    sources.push(std::fs::read_to_string(p.path())?);
+                }
             }
             if metadata.is_dir() {
                 read_dir_recursive(p.path(), sources, f)?;
