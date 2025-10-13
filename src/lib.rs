@@ -460,6 +460,9 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     let has_sse2 = is_x86_feature_detected!("sse2");
 
+    #[cfg(target_arch = "aarch64")]
+    let has_neon = cfg!(target_os = "macos") || std::arch::is_aarch64_feature_detected!("neon");
+
     let mut v_generic: simd::v128::Simd128u;
 
     #[cfg(all(
@@ -491,9 +494,9 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
         *dptr = b'"';
         dptr = dptr.add(1);
         while nb >= LANES {
-            #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+            #[cfg(target_arch = "aarch64")]
             {
-                if cfg!(target_os = "macos") || std::arch::is_aarch64_feature_detected!("neon") {
+                if has_neon {
                     v_neon = load(sptr);
                     v_neon.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
                         dptr, LANES,
@@ -543,15 +546,10 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
             }
         }
 
-        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+        #[cfg(target_arch = "aarch64")]
         {
-            if cfg!(target_os = "macos") || std::arch::is_aarch64_feature_detected!("neon") {
+            if has_neon {
                 const LANES: usize = simd::neon::Simd128u::LANES;
-                // Scratch buffer reused for mask materialisation; stay uninitialised.
-                #[cfg(not(miri))]
-                #[allow(invalid_value, clippy::uninit_assumed_init)]
-                let mut placeholder: [u8; LANES] = core::mem::MaybeUninit::uninit().assume_init();
-                #[cfg(miri)]
                 let mut placeholder: [u8; LANES] = [0; LANES];
                 while nb > 0 {
                     v_neon = load_v!(placeholder, sptr, nb);
@@ -572,11 +570,6 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 }
             } else {
                 const LANES: usize = simd::v128::Simd128u::LANES;
-                // Scratch buffer reused for mask materialisation; stay uninitialised.
-                #[cfg(not(miri))]
-                #[allow(invalid_value, clippy::uninit_assumed_init)]
-                let mut placeholder: [u8; LANES] = core::mem::MaybeUninit::uninit().assume_init();
-                #[cfg(miri)]
                 let mut placeholder: [u8; LANES] = [0; LANES];
                 while nb > 0 {
                     v_generic = load_v!(placeholder, sptr, nb);
@@ -601,11 +594,6 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
         {
             if has_avx512 {
                 const LANES: usize = simd::avx512::Simd512u::LANES;
-                // Scratch buffer reused for mask materialisation; stay uninitialised.
-                #[cfg(not(miri))]
-                #[allow(invalid_value, clippy::uninit_assumed_init)]
-                let mut placeholder: [u8; LANES] = core::mem::MaybeUninit::uninit().assume_init();
-                #[cfg(miri)]
                 let mut placeholder: [u8; LANES] = [0; LANES];
                 while nb > 0 {
                     v_avx512 = load_v!(placeholder, sptr, nb);
@@ -627,10 +615,6 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
             } else if has_avx2 {
                 const LANES: usize = simd::avx2::Simd256u::LANES;
                 // Scratch buffer reused for mask materialisation; stay uninitialised.
-                #[cfg(not(miri))]
-                #[allow(invalid_value, clippy::uninit_assumed_init)]
-                let mut placeholder: [u8; LANES] = core::mem::MaybeUninit::uninit().assume_init();
-                #[cfg(miri)]
                 let mut placeholder: [u8; LANES] = [0; LANES];
                 while nb > 0 {
                     v_avx2 = load_v!(placeholder, sptr, nb);
@@ -651,11 +635,6 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 }
             } else if has_sse2 {
                 const LANES: usize = simd::sse2::Simd128u::LANES;
-                // Scratch buffer reused for mask materialisation; stay uninitialised.
-                #[cfg(not(miri))]
-                #[allow(invalid_value, clippy::uninit_assumed_init)]
-                let mut placeholder: [u8; LANES] = core::mem::MaybeUninit::uninit().assume_init();
-                #[cfg(miri)]
                 let mut placeholder: [u8; LANES] = [0; LANES];
                 while nb > 0 {
                     v_sse2 = load_v!(placeholder, sptr, nb);
@@ -676,11 +655,6 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 }
             } else {
                 const LANES: usize = simd::v128::Simd128u::LANES;
-                // Scratch buffer reused for mask materialisation; stay uninitialised.
-                #[cfg(not(miri))]
-                #[allow(invalid_value, clippy::uninit_assumed_init)]
-                let mut placeholder: [u8; LANES] = core::mem::MaybeUninit::uninit().assume_init();
-                #[cfg(miri)]
                 let mut placeholder: [u8; LANES] = [0; LANES];
                 while nb > 0 {
                     v_generic = load_v!(placeholder, sptr, nb);
