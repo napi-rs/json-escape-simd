@@ -22,6 +22,7 @@ codspeed = ["criterion2/codspeed"]
 [[bench]]
 name = "escape"
 harness = false
+path = "benches/escape.rs"
 
 [dependencies]
 sonic-simd = "0.1"
