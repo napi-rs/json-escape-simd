@@ -611,10 +611,9 @@ mod tests {
         for entry in dir {
             let p = entry?;
             let metadata = std::fs::metadata(p.path())?;
-            if metadata.is_file()
-                && f(p.path()) {
-                    sources.push(std::fs::read_to_string(p.path())?);
-                }
+            if metadata.is_file() && f(p.path()) {
+                sources.push(std::fs::read_to_string(p.path())?);
+            }
             if metadata.is_dir() {
                 read_dir_recursive(p.path(), sources, f)?;
             }
