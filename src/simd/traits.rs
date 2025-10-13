@@ -39,9 +39,6 @@ pub trait Mask: Sized + BitOr<Self> + BitOrAssign + BitAnd<Self> {
     type BitMask: BitMask;
 
     fn bitmask(self) -> Self::BitMask;
-
-    #[allow(unused)]
-    fn splat(b: bool) -> Self;
 }
 
 /// Trait for the bitmask of a vector Mask.

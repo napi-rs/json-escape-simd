@@ -23,12 +23,6 @@ impl Mask for Mask128 {
     fn bitmask(self) -> Self::BitMask {
         unsafe { _mm_movemask_epi8(self.0) as u16 }
     }
-
-    #[inline(always)]
-    fn splat(b: bool) -> Self {
-        let v: i8 = if b { -1 } else { 0 };
-        unsafe { Mask128(_mm_set1_epi8(v)) }
-    }
 }
 
 impl BitAnd<Mask128> for Mask128 {

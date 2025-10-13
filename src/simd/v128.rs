@@ -66,10 +66,6 @@ impl Mask for Mask128 {
                 .fold(0, |acc, (i, &b)| acc | ((b as u16) << (15 - i)))
         }
     }
-
-    fn splat(b: bool) -> Self {
-        Mask128([b as u8; 16])
-    }
 }
 
 impl BitAnd for Mask128 {

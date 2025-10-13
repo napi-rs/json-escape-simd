@@ -23,11 +23,6 @@ impl Mask for Mask512 {
     fn bitmask(self) -> Self::BitMask {
         self.0
     }
-
-    #[inline(always)]
-    fn splat(b: bool) -> Self {
-        if b { Mask512(u64::MAX) } else { Mask512(0) }
-    }
 }
 
 impl BitOr for Mask512 {

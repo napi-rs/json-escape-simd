@@ -57,12 +57,6 @@ impl Mask for Mask128 {
             NeonBits::new(vget_lane_u64(v64, 0))
         }
     }
-
-    #[inline(always)]
-    fn splat(b: bool) -> Self {
-        let v: i8 = if b { -1 } else { 0 };
-        unsafe { Self(vdupq_n_u8(v as u8)) }
-    }
 }
 
 // Bitwise AND for Mask128
