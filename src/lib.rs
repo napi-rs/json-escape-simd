@@ -2,13 +2,13 @@
 //!
 //! Only takes the string escaping part to avoid the abstraction overhead.
 
+#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+use std::arch::is_x86_feature_detected;
 use std::slice::from_raw_parts;
 
-#[cfg(not(all(target_feature = "neon", target_arch = "aarch64")))]
-use sonic_simd::u8x32;
-use sonic_simd::{BitMask, Mask, Simd};
-#[cfg(all(target_feature = "neon", target_arch = "aarch64"))]
-use sonic_simd::{bits::NeonBits, u8x16};
+use simd::{BitMask, Mask, Simd};
+
+mod simd;
 
 #[inline(always)]
 unsafe fn load<V: Simd>(ptr: *const u8) -> V {
@@ -292,6 +292,22 @@ const NEED_ESCAPED: [u8; 256] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    not(feature = "codspeed")
+))]
+static COMPUTE_LANES: std::sync::Once = std::sync::Once::new();
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    not(feature = "codspeed")
+))]
+static mut LANES: usize = simd::avx2::Simd256u::LANES;
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "codspeed"))]
+const LANES: usize = simd::avx2::Simd256u::LANES;
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+const LANES: usize = 16;
+
 // only check the src length.
 #[inline(always)]
 unsafe fn escape_unchecked(src: &mut *const u8, nb: &mut usize, dst: &mut *mut u8) {
@@ -324,36 +340,148 @@ fn check_cross_page(ptr: *const u8, step: usize) -> bool {
 }
 
 #[inline(always)]
+fn escaped_mask_generic(v: simd::v128::Simd128u) -> u16 {
+    use simd::v128::Simd128u as u8x16;
+
+    let x1f = u8x16::splat(0x1f); // 0x00 ~ 0x20
+    let blash = u8x16::splat(b'\\');
+    let quote = u8x16::splat(b'"');
+    let v = v.le(&x1f) | v.eq(&blash) | v.eq(&quote);
+    v.bitmask()
+}
+
+#[cfg(target_arch = "aarch64")]
+#[inline(always)]
+fn escaped_mask_neon(v: simd::neon::Simd128u) -> simd::bits::NeonBits {
+    use simd::neon::Simd128u as u8x16;
+
+    let x1f = u8x16::splat(0x1f); // 0x00 ~ 0x20
+    let blash = u8x16::splat(b'\\');
+    let quote = u8x16::splat(b'"');
+    let v = v.le(&x1f) | v.eq(&blash) | v.eq(&quote);
+    v.bitmask()
+}
+
+#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+#[inline(always)]
+fn escaped_mask_sse2(v: simd::sse2::Simd128u) -> u16 {
+    use simd::sse2::Simd128u as u8x16;
+
+    let x1f = u8x16::splat(0x1f); // 0x00 ~ 0x20
+    let blash = u8x16::splat(b'\\');
+    let quote = u8x16::splat(b'"');
+    let v = v.le(&x1f) | v.eq(&blash) | v.eq(&quote);
+    v.bitmask()
+}
+
+#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+#[inline(always)]
+fn escaped_mask_avx2(v: simd::avx2::Simd256u) -> u32 {
+    use simd::avx2::Simd256u as u8x32;
+
+    let x1f = u8x32::splat(0x1f); // 0x00 ~ 0x20
+    let blash = u8x32::splat(b'\\');
+    let quote = u8x32::splat(b'"');
+    let v = v.le(&x1f) | v.eq(&blash) | v.eq(&quote);
+    v.bitmask()
+}
+
+#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+#[inline(always)]
+fn escaped_mask_avx512(v: simd::avx512::Simd512u) -> u64 {
+    use simd::avx512::Simd512u as u8x64;
+
+    let x1f = u8x64::splat(0x1f); // 0x00 ~ 0x20
+    let blash = u8x64::splat(b'\\');
+    let quote = u8x64::splat(b'"');
+    let v = v.le(&x1f) | v.eq(&blash) | v.eq(&quote);
+    v.bitmask()
+}
+
+macro_rules! escape {
+    ($mask:expr, $nb:expr, $dptr:expr, $sptr:expr) => {
+        if $mask.all_zero() {
+            $nb -= LANES;
+            $dptr = $dptr.add(LANES);
+            $sptr = $sptr.add(LANES);
+        } else {
+            let cn = $mask.first_offset();
+            $nb -= cn;
+            $dptr = $dptr.add(cn);
+            $sptr = $sptr.add(cn);
+            escape_unchecked(&mut $sptr, &mut $nb, &mut $dptr);
+        }
+    };
+}
+
+macro_rules! load_v {
+    ($placeholder:expr, $sptr:expr, $nb:expr) => {{
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        {
+            std::ptr::copy_nonoverlapping($sptr, $placeholder[..].as_mut_ptr(), $nb);
+            load($placeholder[..].as_ptr())
+        }
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        {
+            if check_cross_page($sptr, LANES) {
+                std::ptr::copy_nonoverlapping($sptr, $placeholder[..].as_mut_ptr(), $nb);
+                load($placeholder[..].as_ptr())
+            } else {
+                #[cfg(any(debug_assertions, miri))]
+                {
+                    std::ptr::copy_nonoverlapping($sptr, $placeholder[..].as_mut_ptr(), $nb);
+                    load($placeholder[..].as_ptr())
+                }
+                #[cfg(not(any(debug_assertions, miri)))]
+                {
+                    load($sptr)
+                }
+            }
+        }
+    }};
+}
+
+#[inline(always)]
 fn format_string(value: &str, dst: &mut [u8]) -> usize {
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-    let mut v: u8x16;
-    #[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
-    let mut v: u8x32;
+    #[cfg(target_arch = "aarch64")]
+    let mut v_neon: simd::neon::Simd128u;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let mut v_sse2: simd::sse2::Simd128u;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let mut v_avx2: simd::avx2::Simd256u;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let mut v_avx512: simd::avx512::Simd512u;
 
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-    const LANES: usize = 16;
-    #[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
-    const LANES: usize = 32;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let has_avx512 = is_x86_feature_detected!("avx512f");
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let has_avx2 = is_x86_feature_detected!("avx2");
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    let has_sse2 = is_x86_feature_detected!("sse2");
 
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-    #[inline]
-    fn escaped_mask(v: u8x16) -> NeonBits {
-        let x1f = u8x16::splat(0x1f); // 0x00 ~ 0x20
-        let blash = u8x16::splat(b'\\');
-        let quote = u8x16::splat(b'"');
-        let v = v.le(&x1f) | v.eq(&blash) | v.eq(&quote);
-        v.bitmask()
-    }
+    #[cfg(target_arch = "aarch64")]
+    let has_neon = cfg!(target_os = "macos") || std::arch::is_aarch64_feature_detected!("neon");
 
-    #[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
-    #[inline]
-    fn escaped_mask(v: u8x32) -> u32 {
-        let x1f = u8x32::splat(0x1f); // 0x00 ~ 0x20
-        let blash = u8x32::splat(b'\\');
-        let quote = u8x32::splat(b'"');
-        let v = v.le(&x1f) | v.eq(&blash) | v.eq(&quote);
-        v.bitmask()
-    }
+    let mut v_generic: simd::v128::Simd128u;
+
+    #[cfg(all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        not(feature = "codspeed")
+    ))]
+    COMPUTE_LANES.call_once(|| {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            if is_x86_feature_detected!("avx512f") {
+                unsafe {
+                    LANES = simd::avx512::Simd512u::LANES;
+                }
+            } else if !is_x86_feature_detected!("avx2") {
+                unsafe {
+                    LANES = simd::sse2::Simd128u::LANES;
+                }
+            }
+        }
+    });
 
     unsafe {
         let slice = value.as_bytes();
@@ -365,66 +493,184 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
         *dptr = b'"';
         dptr = dptr.add(1);
         while nb >= LANES {
-            v = load(sptr);
-            v.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(dptr, LANES));
-            let mask = escaped_mask(v);
-            if mask.all_zero() {
-                nb -= LANES;
-                dptr = dptr.add(LANES);
-                sptr = sptr.add(LANES);
-            } else {
-                let cn = mask.first_offset();
-                nb -= cn;
-                dptr = dptr.add(cn);
-                sptr = sptr.add(cn);
-                escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+            #[cfg(target_arch = "aarch64")]
+            {
+                if has_neon {
+                    v_neon = load(sptr);
+                    v_neon.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_neon(v_neon);
+                    escape!(mask, nb, dptr, sptr);
+                } else {
+                    v_generic = load(sptr);
+                    v_generic.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_generic(v_generic);
+                    escape!(mask, nb, dptr, sptr);
+                }
+            }
+            #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+            {
+                if has_avx512 {
+                    v_avx512 = load(sptr);
+                    v_avx512.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_avx512(v_avx512);
+                    escape!(mask, nb, dptr, sptr);
+                } else if has_avx2 {
+                    v_avx2 = load(sptr);
+                    v_avx2.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_avx2(v_avx2);
+                    escape!(mask, nb, dptr, sptr);
+                } else if has_sse2 {
+                    v_sse2 = load(sptr);
+                    v_sse2.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_sse2(v_sse2);
+                    escape!(mask, nb, dptr, sptr);
+                } else {
+                    v_generic = load(sptr);
+                    v_generic.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_generic(v_generic);
+                    escape!(mask, nb, dptr, sptr);
+                }
             }
         }
 
-        // Scratch buffer reused for mask materialisation; stay uninitialised.
-        #[cfg(not(miri))]
-        #[allow(invalid_value, clippy::uninit_assumed_init)]
-        let mut placeholder: [u8; LANES] = core::mem::MaybeUninit::uninit().assume_init();
-        #[cfg(miri)]
-        let mut placeholder: [u8; LANES] = [0; LANES];
-        while nb > 0 {
-            v = {
-                #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-                {
-                    std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
-                    load(placeholder[..].as_ptr())
-                }
-                #[cfg(any(target_os = "linux", target_os = "macos"))]
-                {
-                    if check_cross_page(sptr, LANES) {
-                        std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
-                        load(placeholder[..].as_ptr())
+        #[cfg(target_arch = "aarch64")]
+        {
+            if has_neon {
+                const LANES: usize = simd::neon::Simd128u::LANES;
+                let mut placeholder: [u8; LANES] = [0; LANES];
+                while nb > 0 {
+                    v_neon = load_v!(placeholder, sptr, nb);
+                    v_neon.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_neon(v_neon).clear_high_bits(LANES - nb);
+                    if mask.all_zero() {
+                        dptr = dptr.add(nb);
+                        break;
                     } else {
-                        #[cfg(not(debug_assertions))]
-                        {
-                            // disable memory sanitizer here
-                            load(sptr)
-                        }
-                        #[cfg(debug_assertions)]
-                        {
-                            std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
-                            load(placeholder[..].as_ptr())
-                        }
+                        let cn = mask.first_offset();
+                        nb -= cn;
+                        dptr = dptr.add(cn);
+                        sptr = sptr.add(cn);
+                        escape_unchecked(&mut sptr, &mut nb, &mut dptr);
                     }
                 }
-            };
-            v.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(dptr, LANES));
-
-            let mask = escaped_mask(v).clear_high_bits(LANES - nb);
-            if mask.all_zero() {
-                dptr = dptr.add(nb);
-                break;
             } else {
-                let cn = mask.first_offset();
-                nb -= cn;
-                dptr = dptr.add(cn);
-                sptr = sptr.add(cn);
-                escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                const LANES: usize = simd::v128::Simd128u::LANES;
+                let mut placeholder: [u8; LANES] = [0; LANES];
+                while nb > 0 {
+                    v_generic = load_v!(placeholder, sptr, nb);
+                    v_generic.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_generic(v_generic).clear_high_bits(LANES - nb);
+                    if mask.all_zero() {
+                        dptr = dptr.add(nb);
+                        break;
+                    } else {
+                        let cn = mask.first_offset();
+                        nb -= cn;
+                        dptr = dptr.add(cn);
+                        sptr = sptr.add(cn);
+                        escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    }
+                }
+            }
+        }
+        #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+        {
+            if has_avx512 {
+                const LANES: usize = simd::avx512::Simd512u::LANES;
+                let mut placeholder: [u8; LANES] = [0; LANES];
+                while nb > 0 {
+                    v_avx512 = load_v!(placeholder, sptr, nb);
+                    v_avx512.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_avx512(v_avx512).clear_high_bits(LANES - nb);
+                    if mask.all_zero() {
+                        dptr = dptr.add(nb);
+                        break;
+                    } else {
+                        let cn = mask.first_offset();
+                        nb -= cn;
+                        dptr = dptr.add(cn);
+                        sptr = sptr.add(cn);
+                        escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    }
+                }
+            } else if has_avx2 {
+                const LANES: usize = simd::avx2::Simd256u::LANES;
+                let mut placeholder: [u8; LANES] = [0; LANES];
+                while nb > 0 {
+                    v_avx2 = load_v!(placeholder, sptr, nb);
+                    v_avx2.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_avx2(v_avx2).clear_high_bits(LANES - nb);
+                    if mask.all_zero() {
+                        dptr = dptr.add(nb);
+                        break;
+                    } else {
+                        let cn = mask.first_offset();
+                        nb -= cn;
+                        dptr = dptr.add(cn);
+                        sptr = sptr.add(cn);
+                        escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    }
+                }
+            } else if has_sse2 {
+                const LANES: usize = simd::sse2::Simd128u::LANES;
+                let mut placeholder: [u8; LANES] = [0; LANES];
+                while nb > 0 {
+                    v_sse2 = load_v!(placeholder, sptr, nb);
+                    v_sse2.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_sse2(v_sse2).clear_high_bits(LANES - nb);
+                    if mask.all_zero() {
+                        dptr = dptr.add(nb);
+                        break;
+                    } else {
+                        let cn = mask.first_offset();
+                        nb -= cn;
+                        dptr = dptr.add(cn);
+                        sptr = sptr.add(cn);
+                        escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    }
+                }
+            } else {
+                const LANES: usize = simd::v128::Simd128u::LANES;
+                let mut placeholder: [u8; LANES] = [0; LANES];
+                while nb > 0 {
+                    v_generic = load_v!(placeholder, sptr, nb);
+                    v_generic.write_to_slice_unaligned_unchecked(std::slice::from_raw_parts_mut(
+                        dptr, LANES,
+                    ));
+                    let mask = escaped_mask_generic(v_generic).clear_high_bits(LANES - nb);
+                    if mask.all_zero() {
+                        dptr = dptr.add(nb);
+                        break;
+                    } else {
+                        let cn = mask.first_offset();
+                        nb -= cn;
+                        dptr = dptr.add(cn);
+                        sptr = sptr.add(cn);
+                        escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    }
+                }
             }
         }
         *dptr = b'"';
@@ -436,7 +682,10 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
 pub fn escape(value: &str) -> String {
     let capacity = value.len() * 6 + 32 + 3;
     let mut buf = Vec::with_capacity(capacity);
-    unsafe { buf.set_len(capacity) };
+    #[allow(clippy::uninit_vec)]
+    unsafe {
+        buf.set_len(capacity)
+    };
     let cnt = format_string(value, &mut buf);
     unsafe { buf.set_len(cnt) };
     unsafe { String::from_utf8_unchecked(buf) }

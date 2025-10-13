@@ -322,7 +322,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sonic-rs",
- "sonic-simd",
  "v_jsonescape",
 ]
 

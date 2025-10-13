@@ -24,7 +24,6 @@ name = "escape"
 harness = false
 
 [dependencies]
-sonic-simd = "0.1"
 
 [dev-dependencies]
 criterion2 = "3"
@@ -39,6 +38,8 @@ sonic-rs = "0.5"
 [profile.bench]
 lto = true
 codegen-units = 1
+debug = true
+strip = false
 
 [profile.instruments]
 inherits = "release"
