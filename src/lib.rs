@@ -301,7 +301,7 @@ static COMPUTE_LANES: std::sync::Once = std::sync::Once::new();
     any(target_arch = "x86", target_arch = "x86_64"),
     not(feature = "codspeed")
 ))]
-static mut LANES: usize = 32;
+static mut LANES: usize = simd::avx2::Simd256u::LANES;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "codspeed"))]
 const LANES: usize = 32;
 
@@ -351,7 +351,7 @@ fn escaped_mask_generic(v: simd::v128::Simd128u) -> u16 {
 }
 
 #[cfg(target_arch = "aarch64")]
-#[inline]
+#[inline(always)]
 fn escaped_mask_neon(v: simd::neon::Simd128u) -> simd::bits::NeonBits {
     use simd::neon::Simd128u as u8x16;
 
@@ -363,7 +363,7 @@ fn escaped_mask_neon(v: simd::neon::Simd128u) -> simd::bits::NeonBits {
 }
 
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-#[inline]
+#[inline(always)]
 fn escaped_mask_sse2(v: simd::sse2::Simd128u) -> u16 {
     use simd::sse2::Simd128u as u8x16;
 
@@ -375,7 +375,7 @@ fn escaped_mask_sse2(v: simd::sse2::Simd128u) -> u16 {
 }
 
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-#[inline]
+#[inline(always)]
 fn escaped_mask_avx2(v: simd::avx2::Simd256u) -> u32 {
     use simd::avx2::Simd256u as u8x32;
 
@@ -387,7 +387,7 @@ fn escaped_mask_avx2(v: simd::avx2::Simd256u) -> u32 {
 }
 
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-#[inline]
+#[inline(always)]
 fn escaped_mask_avx512(v: simd::avx512::Simd512u) -> u64 {
     use simd::avx512::Simd512u as u8x64;
 
