@@ -85,7 +85,7 @@ jobs:
             rustc_flags: ''
           - flag: sanitizer=cfi
             options: ''
-            rustc_flags: '-Clto'
+            rustc_flags: '-Clto -Ccodegen-units=1'
 
     steps:
       - uses: actions/checkout@v5
@@ -152,7 +152,7 @@ jobs:
         env:
           RUST_TARGET: aarch64-unknown-linux-gnu
           RUST_BACKTRACE: 1
-          RUSTFLAGS: -C target-feature="+mte" -Zsanitizer=memtag
+          RUSTFLAGS: -Ctarget-feature=+mte -Zsanitizer=memtag'
           CARGO_UNSTABLE_BUILD_STD: std,panic_abort
 
   asan-win32:
