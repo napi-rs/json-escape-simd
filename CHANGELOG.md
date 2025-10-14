@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.0.0...json-escape-simd-v3.0.1) - 2025-10-14
+
+### Other
+
+- hide avx512 behind feature flag ([#39](https://github.com/napi-rs/json-escape-simd/pull/39))
+
 ## [3.0.0](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v2.0.0...json-escape-simd-v3.0.0) - 2025-10-13
 
 ### Other
