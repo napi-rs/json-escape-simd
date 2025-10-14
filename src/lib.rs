@@ -2,6 +2,8 @@
 //!
 //! Only takes the string escaping part to avoid the abstraction overhead.
 
+#![allow(clippy::incompatible_msrv)]
+
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 use std::arch::is_x86_feature_detected;
 
