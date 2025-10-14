@@ -2,7 +2,7 @@
 
 #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
 pub(crate) mod avx2;
-#[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
+#[cfg(all(any(target_arch = "x86_64", target_arch = "x86"), feature = "avx512"))]
 pub(crate) mod avx512;
 pub mod bits;
 #[cfg(target_arch = "aarch64")]

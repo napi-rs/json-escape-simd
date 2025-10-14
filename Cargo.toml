@@ -5,7 +5,7 @@ members = ["cpu-features"]
 name = "json-escape-simd"
 version = "3.0.0"
 edition = "2024"
-rust-version = "1.89.0"
+rust-version = "1.85.0"
 include = ["src/**/*.rs"]
 description = "Optimized SIMD routines for escaping JSON strings."
 license = "MIT"
@@ -18,6 +18,7 @@ path = "examples/escape.rs"
 
 [features]
 codspeed = ["criterion2/codspeed"]
+avx512 = []
 asan = [] # for ASAN
 
 [[bench]]

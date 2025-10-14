@@ -297,9 +297,13 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
-        if is_x86_feature_detected!("avx512f") {
-            unsafe { simd::avx512::format_string(value, dst) }
-        } else if is_x86_feature_detected!("avx2") {
+        #[cfg(feature = "avx512")]
+        {
+            if is_x86_feature_detected!("avx512f") {
+                return unsafe { simd::avx512::format_string(value, dst) };
+            }
+        }
+        if is_x86_feature_detected!("avx2") {
             unsafe { simd::avx2::format_string(value, dst) }
         } else if is_x86_feature_detected!("sse2") {
             unsafe { simd::sse2::format_string(value, dst) }
