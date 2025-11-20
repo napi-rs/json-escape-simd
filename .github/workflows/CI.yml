@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
     runs-on: ${{ matrix.settings.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -55,7 +55,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -91,7 +91,7 @@ jobs:
             options: ""
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -128,7 +128,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -196,7 +196,7 @@ jobs:
       fail-fast: false
     runs-on: ${{ matrix.settings.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
