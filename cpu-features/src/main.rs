@@ -362,7 +362,6 @@ fn detect_unstable_x86_feature_impl(name: &str) -> Option<bool> {
         "amx-fp8" => std::arch::is_x86_feature_detected!("amx-fp8"),
         "amx-movrs" => std::arch::is_x86_feature_detected!("amx-movrs"),
         "amx-tf32" => std::arch::is_x86_feature_detected!("amx-tf32"),
-        "amx-transpose" => std::arch::is_x86_feature_detected!("amx-transpose"),
         "movrs" => std::arch::is_x86_feature_detected!("movrs"),
         "xop" => std::arch::is_x86_feature_detected!("xop"),
         _ => return None,
