@@ -30,7 +30,7 @@ harness = false
 [dev-dependencies]
 criterion2 = "3"
 glob = "0.3"
-rand = "0.9"
+rand = "0.10"
 serde = "1"
 serde_json = "1"
 v_jsonescape = "0.7"
