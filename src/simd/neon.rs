@@ -95,13 +95,19 @@ impl std::ops::BitOrAssign<Mask128> for Mask128 {
     }
 }
 
+/// Returns the vector-domain escape mask (Mask128) without extracting to bitmask.
+/// This allows combining multiple masks with SIMD OR before a single bitmask extraction.
 #[inline(always)]
-fn escaped_mask(v: Simd128u) -> NeonBits {
-    let x1f = Simd128u::splat(0x1f); // 0x00 ~ 0x20
+fn escaped_mask_vec(v: Simd128u) -> Mask128 {
+    let x1f = Simd128u::splat(0x1f); // 0x00 ~ 0x1f
     let blash = Simd128u::splat(b'\\');
     let quote = Simd128u::splat(b'"');
-    let v = v.le(&x1f) | v.eq(&blash) | v.eq(&quote);
-    v.bitmask()
+    v.le(&x1f) | v.eq(&blash) | v.eq(&quote)
+}
+
+#[inline(always)]
+fn escaped_mask(v: Simd128u) -> NeonBits {
+    escaped_mask_vec(v).bitmask()
 }
 
 #[target_feature(enable = "neon")]
@@ -124,14 +130,14 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
             let v3 = Simd128u::loadu(sptr.add(LANES * 2));
             let v4 = Simd128u::loadu(sptr.add(LANES * 3));
 
-            // Check all 4 masks
-            let mask1 = escaped_mask(v1);
-            let mask2 = escaped_mask(v2);
-            let mask3 = escaped_mask(v3);
-            let mask4 = escaped_mask(v4);
+            // Compute escape masks in vector domain (all independent, can pipeline)
+            let m1 = escaped_mask_vec(v1);
+            let m2 = escaped_mask_vec(v2);
+            let m3 = escaped_mask_vec(v3);
+            let m4 = escaped_mask_vec(v4);
 
-            // Fast path: if all vectors are clean, write the entire chunk
-            if mask1.all_zero() && mask2.all_zero() && mask3.all_zero() && mask4.all_zero() {
+            // Combined check: single bitmask extraction instead of four
+            if (m1 | m2 | m3 | m4).bitmask().all_zero() {
                 v1.storeu(dptr);
                 v2.storeu(dptr.add(LANES));
                 v3.storeu(dptr.add(LANES * 2));
@@ -140,8 +146,8 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 dptr = dptr.add(CHUNK);
                 sptr = sptr.add(CHUNK);
             } else {
-                // Slow path: handle escape character
-                // Process v1
+                // Slow path: extract individual bitmasks lazily
+                let mask1 = m1.bitmask();
                 v1.storeu(dptr);
                 if !mask1.all_zero() {
                     let cn = mask1.first_offset();
@@ -155,7 +161,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 dptr = dptr.add(LANES);
                 sptr = sptr.add(LANES);
 
-                // Process v2
+                let mask2 = m2.bitmask();
                 v2.storeu(dptr);
                 if !mask2.all_zero() {
                     let cn = mask2.first_offset();
@@ -169,7 +175,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 dptr = dptr.add(LANES);
                 sptr = sptr.add(LANES);
 
-                // Process v3
+                let mask3 = m3.bitmask();
                 v3.storeu(dptr);
                 if !mask3.all_zero() {
                     let cn = mask3.first_offset();
@@ -183,7 +189,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 dptr = dptr.add(LANES);
                 sptr = sptr.add(LANES);
 
-                // Process v4
+                let mask4 = m4.bitmask();
                 v4.storeu(dptr);
                 if !mask4.all_zero() {
                     let cn = mask4.first_offset();
