@@ -371,7 +371,7 @@ dependencies = [
 
 [[package]]
 name = "json-escape-simd"
-version = "3.0.1"
+version = "3.0.2"
 dependencies = [
  "criterion2",
  "glob",
