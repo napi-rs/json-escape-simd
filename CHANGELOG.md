@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.2](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.0.1...json-escape-simd-v3.0.2) - 2026-03-08
+
+### Other
+
+- *(deps)* lock file maintenance ([#63](https://github.com/napi-rs/json-escape-simd/pull/63))
+- *(neon)* combine 4 escape masks in SIMD domain before GPR extraction ([#61](https://github.com/napi-rs/json-escape-simd/pull/61))
+- *(deps)* update rust crate rand to 0.10 ([#58](https://github.com/napi-rs/json-escape-simd/pull/58))
+
 ## [3.0.1](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.0.0...json-escape-simd-v3.0.1) - 2025-10-14
 
 ### Other
