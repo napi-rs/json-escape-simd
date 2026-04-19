@@ -4,7 +4,6 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 
 use std::ops::{BitAnd, BitOr, BitOrAssign};
-use crate::simd::v128::format_raw;
 use super::{Mask, Simd, traits::BitMask, util::escape_unchecked};
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -137,7 +136,7 @@ pub fn format_unquoted(value: &str, dst: &mut [u8]) -> usize {
 }
 
 #[target_feature(enable = "avx2")]
-pub unsafe fn format_string(value: &str, mut dptr: *mut u8) -> *mut u8 {
+pub unsafe fn format_raw(value: &str, mut dptr: *mut u8) -> *mut u8 {
     unsafe {
         let slice = value.as_bytes();
         let mut sptr = slice.as_ptr();

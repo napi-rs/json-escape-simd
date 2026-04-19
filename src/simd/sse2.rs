@@ -134,7 +134,7 @@ pub fn format_unquoted(value: &str, dst: &mut [u8]) -> usize {
 }
 
 #[target_feature(enable = "sse2")]
-pub unsafe fn format_raw(value: &str, dptr: *mut u8) -> *mut u8 {
+pub unsafe fn format_raw(value: &str, mut dptr: *mut u8) -> *mut u8 {
     unsafe {
         let slice = value.as_bytes();
         let mut sptr = slice.as_ptr();

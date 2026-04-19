@@ -341,11 +341,11 @@ fn format_unquoted(value: &str, dst: &mut [u8]) -> usize {
             }
         }
         if is_x86_feature_detected!("avx2") {
-            unsafe { simd::avx2::format_unquote(value, dst) }
+            unsafe { simd::avx2::format_unquoted(value, dst) }
         } else if is_x86_feature_detected!("sse2") {
-            unsafe { simd::sse2::format_unquote(value, dst) }
+            unsafe { simd::sse2::format_unquoted(value, dst) }
         } else {
-            simd::v128::format_unquote(value, dst)
+            simd::v128::format_unquoted(value, dst)
         }
     }
 
