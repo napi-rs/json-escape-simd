@@ -100,17 +100,46 @@ fn escaped_mask(v: Simd128u) -> u16 {
     v.bitmask()
 }
 
-#[target_feature(enable = "sse2")]
-pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
+#[inline(always)]
+pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
     unsafe {
         let slice = value.as_bytes();
-        let mut sptr = slice.as_ptr();
         let mut dptr = dst.as_mut_ptr();
         let dstart = dptr;
         let mut nb: usize = slice.len();
 
         *dptr = b'"';
         dptr = dptr.add(1);
+
+        dptr = crate::simd::v128::format_raw(value, dptr);
+
+        *dptr = b'"';
+        dptr = dptr.add(1);
+        dptr as usize - dstart as usize
+    }
+}
+
+#[inline(always)]
+pub fn format_unquoted(value: &str, dst: &mut [u8]) -> usize {
+    unsafe {
+        let slice = value.as_bytes();
+        let mut dptr = dst.as_mut_ptr();
+        let dstart = dptr;
+        let mut nb: usize = slice.len();
+
+        dptr = crate::simd::v128::format_raw(value, dptr);
+
+        dptr as usize - dstart as usize
+    }
+}
+
+#[target_feature(enable = "sse2")]
+pub unsafe fn format_raw(value: &str, dptr: *mut u8) -> *mut u8 {
+    unsafe {
+        let slice = value.as_bytes();
+        let mut sptr = slice.as_ptr();
+        let dstart = dptr;
+        let mut nb: usize = slice.len();
 
         // Process CHUNK (4 * LANES = 64 bytes) at a time
         while nb >= CHUNK {
@@ -257,8 +286,6 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
             }
         }
 
-        *dptr = b'"';
-        dptr = dptr.add(1);
-        dptr as usize - dstart as usize
+        dptr
     }
 }

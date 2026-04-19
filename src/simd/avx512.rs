@@ -4,7 +4,7 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 
 use std::ops::{BitAnd, BitOr, BitOrAssign};
-
+use crate::simd::v128::format_raw;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use super::util::check_cross_page;
 use super::{Mask, Simd, traits::BitMask, util::escape_unchecked};
@@ -95,17 +95,48 @@ fn escaped_mask(v: Simd512u) -> u64 {
     v.bitmask()
 }
 
-#[target_feature(enable = "avx512f")]
-pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
+#[inline(always)]
+pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
     unsafe {
         let slice = value.as_bytes();
-        let mut sptr = slice.as_ptr();
         let mut dptr = dst.as_mut_ptr();
         let dstart = dptr;
         let mut nb: usize = slice.len();
 
         *dptr = b'"';
         dptr = dptr.add(1);
+
+        dptr = format_raw(value, dptr);
+
+        *dptr = b'"';
+        dptr = dptr.add(1);
+        dptr as usize - dstart as usize
+    }
+}
+
+#[inline(always)]
+pub fn format_unquoted(value: &str, dst: &mut [u8]) -> usize {
+    unsafe {
+        let slice = value.as_bytes();
+        let mut dptr = dst.as_mut_ptr();
+        let dstart = dptr;
+        let mut nb: usize = slice.len();
+
+        dptr = format_raw(value, dptr);
+
+        dptr as usize - dstart as usize
+    }
+}
+
+
+#[inline(always)]
+#[target_feature(enable = "avx512f")]
+pub unsafe fn format_string(value: &str, mut dptr: *mut u8) -> *mut u8 {
+    unsafe {
+        let slice = value.as_bytes();
+        let mut sptr = slice.as_ptr();
+        let dstart = dptr;
+        let mut nb: usize = slice.len();
 
         // Process CHUNK (4 * LANES = 256 bytes) at a time
         while nb >= CHUNK {
@@ -253,8 +284,6 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
             }
         }
 
-        *dptr = b'"';
-        dptr = dptr.add(1);
-        dptr as usize - dstart as usize
+        dptr
     }
 }
