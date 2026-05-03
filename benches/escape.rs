@@ -66,7 +66,7 @@ fn run_benchmarks(c: &mut Criterion, sources: &[String], prefix: &str) {
     c.bench_function(&format!("{} escape v_jsonescape", prefix), |b| {
         b.iter(|| {
             for source in sources {
-                black_box(v_jsonescape::escape(source).to_string());
+                black_box(v_jsonescape::escape_fmt(source).to_string());
             }
         })
     });
