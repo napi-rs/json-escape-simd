@@ -33,7 +33,7 @@ glob = "0.3"
 rand = "0.10"
 serde = "1"
 serde_json = "1"
-v_jsonescape = "0.7"
+v_jsonescape = "0.9"
 json-escape = "0.3.0"
 sonic-rs = "0.5"
 
