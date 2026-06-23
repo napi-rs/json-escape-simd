@@ -291,7 +291,7 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
     {
         let has_neon = cfg!(target_os = "macos") || std::arch::is_aarch64_feature_detected!("neon");
         if has_neon {
-            unsafe { simd::neon::format_string(value, dst) }
+            simd::neon::format_string(value, dst)
         } else {
             simd::v128::format_string(value, dst)
         }
@@ -302,13 +302,13 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
         #[cfg(feature = "avx512")]
         {
             if is_x86_feature_detected!("avx512f") {
-                return unsafe { simd::avx512::format_string(value, dst) };
+                return simd::avx512::format_string(value, dst);
             }
         }
         if is_x86_feature_detected!("avx2") {
-            unsafe { simd::avx2::format_string(value, dst) }
+            simd::avx2::format_string(value, dst)
         } else if is_x86_feature_detected!("sse2") {
-            unsafe { simd::sse2::format_string(value, dst) }
+            simd::sse2::format_string(value, dst)
         } else {
             simd::v128::format_string(value, dst)
         }
@@ -317,6 +317,41 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
     #[cfg(not(any(target_arch = "aarch64", target_arch = "x86", target_arch = "x86_64")))]
     {
         simd::v128::format_string(value, dst)
+    }
+}
+
+#[inline(always)]
+fn format_unquoted(value: &str, dst: &mut [u8]) -> usize {
+    #[cfg(target_arch = "aarch64")]
+    {
+        let has_neon = cfg!(target_os = "macos") || std::arch::is_aarch64_feature_detected!("neon");
+        if has_neon {
+            simd::neon::format_unquoted(value, dst)
+        } else {
+            simd::v128::format_unquoted(value, dst)
+        }
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        #[cfg(feature = "avx512")]
+        {
+            if is_x86_feature_detected!("avx512f") {
+                return simd::avx512::format_unquoted(value, dst);
+            }
+        }
+        if is_x86_feature_detected!("avx2") {
+            simd::avx2::format_unquoted(value, dst)
+        } else if is_x86_feature_detected!("sse2") {
+            simd::sse2::format_unquoted(value, dst)
+        } else {
+            simd::v128::format_unquoted(value, dst)
+        }
+    }
+
+    #[cfg(not(any(target_arch = "aarch64", target_arch = "x86", target_arch = "x86_64")))]
+    {
+        simd::v128::format_unquoted(value, dst)
     }
 }
 
@@ -332,9 +367,22 @@ pub fn escape(value: &str) -> String {
     unsafe { String::from_utf8_unchecked(buf) }
 }
 
+pub fn escape_unquote(value: &str) -> String {
+    let capacity = value.len() * 6 + 32 + 3;
+    let mut buf = Vec::with_capacity(capacity);
+    #[allow(clippy::uninit_vec)]
+    unsafe {
+        buf.set_len(capacity)
+    };
+    let cnt = format_unquoted(value, &mut buf);
+    unsafe { buf.set_len(cnt) };
+    unsafe { String::from_utf8_unchecked(buf) }
+}
+
 /// # Panics
 ///
-/// Panics if the buffer is not large enough. Allocate enough capacity for dst.
+/// Panics if the buffer is not large enough. Allocate enough capacity for dst,
+/// x6 + 2 will be enough in the worst case.
 pub fn escape_into<S: AsRef<str>>(value: S, dst: &mut Vec<u8>) {
     let value = value.as_ref();
     let old_len = dst.len();
@@ -346,6 +394,26 @@ pub fn escape_into<S: AsRef<str>>(value: S, dst: &mut Vec<u8>) {
         let spare =
             std::slice::from_raw_parts_mut(dst.as_mut_ptr().add(old_len), dst.capacity() - old_len);
         let cnt = format_string(value, spare);
+        dst.set_len(old_len + cnt);
+    }
+}
+
+/// Same as escape_into, just without open and close quotes.
+/// # Panics
+///
+/// Panic if the buffer is not large enough. Allocation enough capacity for dst,
+/// x6 will be in the worst case.
+pub fn escape_into_unquote<S: AsRef<str>>(value: S, dst: &mut Vec<u8>) {
+    let value = value.as_ref();
+    let old_len = dst.len();
+
+    // SAFETY: We've reserved enough capacity above, and format_string will
+    // write valid UTF-8 bytes. We'll set the correct length after.
+    unsafe {
+        // Get a slice that includes the spare capacity
+        let spare =
+            std::slice::from_raw_parts_mut(dst.as_mut_ptr().add(old_len), dst.capacity() - old_len);
+        let cnt = format_unquoted(value, spare);
         dst.set_len(old_len + cnt);
     }
 }
@@ -409,6 +477,12 @@ mod tests {
         assert_eq!(escape("\\"), r#""\\""#);
         assert_eq!(escape("\t"), r#""\t""#);
         assert_eq!(escape("\r\n"), r#""\r\n""#);
+    }
+
+    #[test]
+    fn test_unquote() {
+        assert_eq!(escape_unquote("abcd"), "abcd");
+        assert_eq!(escape("abcd"), r#""abcd""#);
     }
 
     #[test]
