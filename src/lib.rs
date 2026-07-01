@@ -301,7 +301,9 @@ fn format_string(value: &str, dst: &mut [u8]) -> usize {
     {
         #[cfg(feature = "avx512")]
         {
-            if is_x86_feature_detected!("avx512f") {
+            // The avx512 kernel uses AVX-512BW byte compares (vpcmpub) and
+            // masked loads/stores (VL), so require both at runtime, not just F.
+            if is_x86_feature_detected!("avx512bw") && is_x86_feature_detected!("avx512vl") {
                 return unsafe { simd::avx512::format_string(value, dst) };
             }
         }
@@ -332,15 +334,23 @@ pub fn escape(value: &str) -> String {
     unsafe { String::from_utf8_unchecked(buf) }
 }
 
-/// # Panics
-///
-/// Panics if the buffer is not large enough. Allocate enough capacity for dst.
+/// Escapes `value` (including the surrounding `"`) and appends the result to
+/// `dst`, growing `dst` as needed.
 pub fn escape_into<S: AsRef<str>>(value: S, dst: &mut Vec<u8>) {
     let value = value.as_ref();
+
+    // The SIMD kernels perform full-register speculative stores and copy 8 bytes
+    // per escape, so they need up to `len * 6 + 32 + 3` scratch bytes past the
+    // current end regardless of the final output length. Reserve that up front
+    // so the unchecked writes below can never exceed the allocation. `reserve`
+    // is effectively free when the caller already sized `dst` large enough.
+    dst.reserve(value.len() * 6 + 32 + 3);
     let old_len = dst.len();
 
-    // SAFETY: We've reserved enough capacity above, and format_string will
-    // write valid UTF-8 bytes. We'll set the correct length after.
+    // SAFETY: the `reserve` above guarantees `dst.capacity() - old_len` is at
+    // least `value.len() * 6 + 32 + 3`, which upper-bounds every store
+    // `format_string` performs. It writes valid UTF-8 and returns the number of
+    // bytes written, which we then commit as the new length.
     unsafe {
         // Get a slice that includes the spare capacity
         let spare =
