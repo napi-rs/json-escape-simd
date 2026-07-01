@@ -5,8 +5,6 @@ use std::arch::x86_64::*;
 
 use std::ops::{BitAnd, BitOr, BitOrAssign};
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-use super::util::check_cross_page;
 use super::{Mask, Simd, traits::BitMask, util::escape_unchecked};
 
 const LANES: usize = 64;
@@ -95,7 +93,7 @@ fn escaped_mask(v: Simd512u) -> u64 {
     v.bitmask()
 }
 
-#[target_feature(enable = "avx512f")]
+#[target_feature(enable = "avx512f,avx512bw,avx512vl")]
 pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
     unsafe {
         let slice = value.as_bytes();
@@ -121,8 +119,9 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
             let mask3 = escaped_mask(v3);
             let mask4 = escaped_mask(v4);
 
-            // Fast path: if all vectors are clean, write the entire chunk
-            if mask1.all_zero() && mask2.all_zero() && mask3.all_zero() && mask4.all_zero() {
+            // Fast path: single OR-combined mask test => 1 branch, lets the 4
+            // independent load+mask dependency chains pipeline in parallel.
+            if (mask1 | mask2 | mask3 | mask4) == 0 {
                 v1.storeu(dptr);
                 v2.storeu(dptr.add(LANES));
                 v3.storeu(dptr.add(LANES * 2));
@@ -209,36 +208,19 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
             }
         }
 
-        // Handle remaining bytes
-        let mut placeholder: [u8; LANES] = [0; LANES];
-        let mut v;
+        // Handle the remaining (< LANES) bytes with an AVX-512BW masked load +
+        // masked store. `nb` is always in 1..=63 here, so k has 1..=63 low bits
+        // set. The zero-masking load `_mm512_maskz_loadu_epi8` suppresses faults
+        // on the masked-off (high) lanes, so it never reads past the valid input
+        // -> page-safe without any placeholder copy. The masked store writes
+        // exactly `nb` bytes, so it also never touches memory beyond the logical
+        // output. The high (masked-off) lanes read as zero, which would look like
+        // escape candidates (0x00 <= 0x1f), so we clear the top LANES-nb mask
+        // bits exactly as the scalar path did.
         while nb > 0 {
-            v = {
-                #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-                {
-                    std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
-                    Simd512u::loadu(placeholder[..].as_ptr())
-                }
-                #[cfg(any(target_os = "linux", target_os = "macos"))]
-                {
-                    if check_cross_page(sptr, LANES) {
-                        std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
-                        Simd512u::loadu(placeholder[..].as_ptr())
-                    } else {
-                        #[cfg(any(debug_assertions, miri, feature = "asan"))]
-                        {
-                            std::ptr::copy_nonoverlapping(sptr, placeholder[..].as_mut_ptr(), nb);
-                            Simd512u::loadu(placeholder[..].as_ptr())
-                        }
-                        #[cfg(not(any(debug_assertions, miri)))]
-                        {
-                            Simd512u::loadu(sptr)
-                        }
-                    }
-                }
-            };
-
-            v.storeu(std::slice::from_raw_parts_mut(dptr, LANES).as_mut_ptr());
+            let k: __mmask64 = (1u64 << nb) - 1;
+            let v = Simd512u(_mm512_maskz_loadu_epi8(k, sptr as *const i8));
+            _mm512_mask_storeu_epi8(dptr as *mut i8, k, v.0);
             let mask = escaped_mask(v).clear_high_bits(LANES - nb);
 
             if mask.all_zero() {
