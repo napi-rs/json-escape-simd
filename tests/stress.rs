@@ -24,17 +24,17 @@ fn stress_all_lengths_and_densities() {
     let fills: [char; 6] = ['\u{0}', '"', '\\', '\n', 'a', '\u{1f}'];
     for len in 0..=600usize {
         for &f in &fills {
-            let s: String = std::iter::repeat(f).take(len).collect();
+            let s: String = std::iter::repeat_n(f, len).collect();
             check(&s);
         }
         if len > 0 {
             // single escape at the very end (tail-boundary trigger)
-            let mut s: String = std::iter::repeat('a').take(len - 1).collect();
+            let mut s = "a".repeat(len - 1);
             s.push('"');
             check(&s);
             // single escape at the very start
             let mut s2 = String::from("\"");
-            s2.extend(std::iter::repeat('a').take(len - 1));
+            s2.extend(std::iter::repeat_n('a', len - 1));
             check(&s2);
         }
     }
@@ -49,7 +49,7 @@ fn escape_into_never_overflows_exact_capacity() {
     let fills: [char; 4] = ['\u{0}', '"', '\\', 'a'];
     for len in 0..=300usize {
         for &f in &fills {
-            let input: String = std::iter::repeat(f).take(len).collect();
+            let input: String = std::iter::repeat_n(f, len).collect();
             let expected = serde_json::to_string(&input).unwrap();
             let mut dst = Vec::with_capacity(expected.len()); // exact, no slack
             escape_into(&input, &mut dst);
@@ -63,7 +63,7 @@ fn stress_multibyte_utf8_boundaries() {
     // Bytes >= 0x80 (UTF-8 lead/continuation) must pass through unescaped,
     // including right at chunk/lane boundaries.
     for len in 0..=200usize {
-        let mut s: String = std::iter::repeat('a').take(len).collect();
+        let mut s = "a".repeat(len);
         s.push('中'); // 3-byte UTF-8
         s.push('"'); // followed by an escape
         s.push('𝄞'); // 4-byte UTF-8
