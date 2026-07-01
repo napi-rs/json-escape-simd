@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.0.2...json-escape-simd-v3.1.0) - 2026-07-01
+
+### Added
+
+- *(avx512)* working, optimized AVX-512 escape kernel + escape_into overflow fix ([#86](https://github.com/napi-rs/json-escape-simd/pull/86))
+
+### Other
+
+- *(deps)* lock file maintenance ([#85](https://github.com/napi-rs/json-escape-simd/pull/85))
+- *(deps)* lock file maintenance ([#79](https://github.com/napi-rs/json-escape-simd/pull/79))
+- *(deps)* update rust crate v_jsonescape to 0.9 ([#74](https://github.com/napi-rs/json-escape-simd/pull/74))
+
 ## [3.0.2](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.0.1...json-escape-simd-v3.0.2) - 2026-04-14
 
 ### Other
