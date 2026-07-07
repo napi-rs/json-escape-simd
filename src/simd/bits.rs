@@ -14,14 +14,13 @@ macro_rules! impl_bits {
 
                 #[inline]
                 fn as_little_endian(&self) -> Self {
-                    #[cfg(target_endian = "little")]
-                    {
-                        self.clone()
-                    }
-                    #[cfg(target_endian = "big")]
-                    {
-                        self.swap_bytes()
-                    }
+                    // The bitmask this operates on is produced in software with a
+                    // canonical layout (lane `i` -> bit `i`) on every target — see
+                    // `Mask::bitmask` in `v128.rs`. It carries no byte order to
+                    // convert, so this is the identity on both endiannesses.
+                    // `swap_bytes` on big-endian would reorder bytes without
+                    // reversing bit order, landing `first_offset` on the wrong bit.
+                    self.clone()
                 }
 
                 #[inline]
