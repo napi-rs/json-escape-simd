@@ -32,6 +32,9 @@ pub trait Mask: Sized + BitOr<Self> + BitOrAssign + BitAnd<Self> {
 /// Trait for the bitmask of a vector Mask.
 pub trait BitMask {
     /// Total bits in the bitmask.
+    // Used only by the wide-SIMD kernels (sse2/avx2/avx512/neon); dead code on
+    // scalar-only targets like s390x that compile just `v128`.
+    #[allow(dead_code)]
     const LEN: usize;
 
     /// get the offset of the first `1` bit.
@@ -41,8 +44,10 @@ pub trait BitMask {
     fn as_little_endian(&self) -> Self;
 
     /// whether all bits are zero.
+    #[allow(dead_code)]
     fn all_zero(&self) -> bool;
 
     /// clear high n bits.
+    #[allow(dead_code)]
     fn clear_high_bits(&self, n: usize) -> Self;
 }

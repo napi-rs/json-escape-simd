@@ -46,7 +46,12 @@ jobs:
       - name: Build benchmark
         run: cargo codspeed build --features codspeed
         env:
-          RUSTFLAGS: '-C target-cpu=native'
+          # Cap the ISA at the AVX2 baseline. `target-cpu=native` makes LLVM
+          # emit AVX-512-class instructions unconditionally based on the
+          # assigned runner's CPU, which CodSpeed's Valgrind simulation cannot
+          # execute (SIGILL / exit 132). x86-64-v3 stays within what Valgrind
+          # supports while still exercising the AVX2 kernel.
+          RUSTFLAGS: '-C target-cpu=x86-64-v3'
 
       - name: Run benchmark
         uses: CodSpeedHQ/action@v4
