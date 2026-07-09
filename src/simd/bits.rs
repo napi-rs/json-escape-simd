@@ -50,9 +50,27 @@ pub struct NeonBits(u64);
 
 #[cfg(target_arch = "aarch64")]
 impl NeonBits {
+    /// Wraps the raw `u64` produced by the NEON `vshrn` bitmask extraction,
+    /// normalizing it to the canonical `lane i -> nibble i` layout that
+    /// `first_offset`, `clear_high_bits` and `all_zero` assume.
+    ///
+    /// On little-endian the extraction is already canonical. On big-endian the
+    /// `vreinterpretq_u16_u8` + `vshrn_n_u16` step packs each lane pair with its
+    /// two nibbles (and the byte pairs) reversed relative to lane order, so the
+    /// whole nibble sequence ends up reversed. Reverse the 16 nibbles to restore
+    /// `lane i -> nibble i` (a plain `swap_bytes` only fixes the byte order, not
+    /// the nibble order within each byte).
     #[inline]
     pub fn new(u: u64) -> Self {
-        Self(u)
+        #[cfg(target_endian = "little")]
+        {
+            Self(u)
+        }
+        #[cfg(target_endian = "big")]
+        {
+            let b = u.swap_bytes();
+            Self(((b & 0x0f0f_0f0f_0f0f_0f0f) << 4) | ((b & 0xf0f0_f0f0_f0f0_f0f0) >> 4))
+        }
     }
 }
 
@@ -67,14 +85,9 @@ impl BitMask for NeonBits {
 
     #[inline]
     fn as_little_endian(&self) -> Self {
-        #[cfg(target_endian = "little")]
-        {
-            Self::new(self.0)
-        }
-        #[cfg(target_endian = "big")]
-        {
-            Self::new(self.0.swap_bytes())
-        }
+        // `new` already normalized the bits to the canonical `lane i -> nibble i`
+        // layout on every target, so there is no byte order left to swap.
+        Self(self.0)
     }
 
     #[inline]
