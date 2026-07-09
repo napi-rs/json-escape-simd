@@ -58,12 +58,9 @@ impl Mask for Mask128 {
     type Element = u8;
 
     fn bitmask(self) -> Self::BitMask {
-        // This bitmask is built purely in software from an array, so it has no
-        // inherent byte order: lane `i` maps to bit `i` on every target. The
-        // matching `first_offset` (see `bits.rs`) is a plain `trailing_zeros`,
-        // and the partial-tail clear in `format_string` (`mask & ((1 << nb) -
-        // 1)`) keeps the low `nb` lanes. Reversing the bit order on big-endian
-        // here would break both, so keep a single canonical layout.
+        // Built in software, so the bitmask has no inherent byte order: lane
+        // `i` maps to bit `i` on every target, matching `first_offset`'s plain
+        // `trailing_zeros`.
         self.0
             .iter()
             .enumerate()
