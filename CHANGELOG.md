@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.1](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.1.0...json-escape-simd-v3.1.1) - 2026-07-09
+
+### Fixed
+
+- *(simd)* correct big-endian bitmask in scalar v128 fallback ([#88](https://github.com/napi-rs/json-escape-simd/pull/88))
+
 ## [3.1.0](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.0.2...json-escape-simd-v3.1.0) - 2026-07-01
 
 ### Added
