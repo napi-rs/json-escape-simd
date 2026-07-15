@@ -28,7 +28,7 @@ jobs:
         with:
           targets: x86_64-unknown-linux-gnu
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: 'yarn'
