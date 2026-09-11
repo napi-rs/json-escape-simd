@@ -1,10 +1,22 @@
-# json-escape-simd
+# escape-simd
+
+SIMD string-escaping kernels shared by JSON and HTML.
+
+| Crate | crates.io | Role |
+| --- | --- | --- |
+| [`escape-simd`](crates/escape-simd) | new | shared kernels (feature-gated `json` / `html`) |
+| [`json-escape-simd`](crates/json-escape-simd) | existing, patch 3.1.2 | JSON facade (`escape`, `escape_into`) |
+| [`html-escape-simd`](crates/html-escape-simd) | new | HTML facade (`escape_html`, `escape_html_into`) |
+
+The published **crate name** `json-escape-simd` is unchanged. This repository is the workspace that contains it.
 
 ![Crates.io Version](https://img.shields.io/crates/v/json-escape-simd)
 ![docs.rs](https://img.shields.io/docsrs/json-escape-simd)
 [![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/napi-rs/json-escape-simd)
 
-Optimized SIMD routines for escaping JSON strings. The implementation is from [sonic-rs](https://github.com/cloudwego/sonic-rs), we only take the string escaping part to avoid the abstraction overhead.
+JSON implementation is from [sonic-rs](https://github.com/cloudwego/sonic-rs); we only take the string escaping part to avoid the abstraction overhead. HTML uses the same kernels with a nibble-lookup classifier.
+
+## JSON (`json-escape-simd`)
 
 ## Benchmarks
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.2] - unreleased
+
+### Changed
+
+- Implementation now lives in the shared `escape-simd` crate. Public JSON API (`escape`, `escape_into`) is unchanged.
+
 ## [3.1.1](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.1.0...json-escape-simd-v3.1.1) - 2026-07-09
 
 ### Fixed

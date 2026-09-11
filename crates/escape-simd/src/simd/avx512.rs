@@ -5,6 +5,8 @@ use std::arch::x86_64::*;
 
 use std::ops::{BitAnd, BitOr, BitOrAssign};
 
+#[cfg(feature = "html")]
+use super::util::{HTML_HI_NIBBLE_TAB, HTML_LO_NIBBLE_TAB};
 use super::{Mask, Simd, traits::BitMask, util::escape_unchecked};
 
 const LANES: usize = 64;
@@ -84,8 +86,32 @@ impl Simd for Simd512u {
     }
 }
 
+/// simdjson-style two-shuffle HTML classifier: look up the byte's low and high
+/// nibbles in the shared tables and test whether they share a bit.
+/// `_mm512_test_epi8_mask` produces the (lo & hi) != 0 mask directly.
+#[cfg(feature = "html")]
 #[inline(always)]
-fn escaped_mask(v: Simd512u) -> u64 {
+fn escaped_mask_html(v: Simd512u) -> u64 {
+    unsafe {
+        let nibble = _mm512_set1_epi8(0x0f);
+        let lo_idx = _mm512_and_si512(v.0, nibble);
+        // No byte-wise shift: shift 16-bit lanes right and mask off the
+        // bleeding bits to recover the high nibble of each byte.
+        let hi_idx = _mm512_and_si512(_mm512_srli_epi16::<4>(v.0), nibble);
+        let lo_tab = _mm512_broadcast_i32x4(_mm_loadu_si128(HTML_LO_NIBBLE_TAB.as_ptr().cast()));
+        let hi_tab = _mm512_broadcast_i32x4(_mm_loadu_si128(HTML_HI_NIBBLE_TAB.as_ptr().cast()));
+        let lo = _mm512_shuffle_epi8(lo_tab, lo_idx);
+        let hi = _mm512_shuffle_epi8(hi_tab, hi_idx);
+        _mm512_test_epi8_mask(lo, hi)
+    }
+}
+
+#[inline(always)]
+fn escaped_mask<const HTML: bool>(v: Simd512u) -> u64 {
+    #[cfg(feature = "html")]
+    if HTML {
+        return escaped_mask_html(v);
+    }
     let x1f = Simd512u::splat(0x1f); // 0x00 ~ 0x20
     let blash = Simd512u::splat(b'\\');
     let quote = Simd512u::splat(b'"');
@@ -94,7 +120,7 @@ fn escaped_mask(v: Simd512u) -> u64 {
 }
 
 #[target_feature(enable = "avx512f,avx512bw,avx512vl")]
-pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
+pub unsafe fn format_string<const HTML: bool>(value: &str, dst: &mut [u8]) -> usize {
     unsafe {
         let slice = value.as_bytes();
         let mut sptr = slice.as_ptr();
@@ -102,8 +128,10 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
         let dstart = dptr;
         let mut nb: usize = slice.len();
 
-        *dptr = b'"';
-        dptr = dptr.add(1);
+        if !HTML {
+            *dptr = b'"';
+            dptr = dptr.add(1);
+        }
 
         // Process CHUNK (4 * LANES = 256 bytes) at a time
         while nb >= CHUNK {
@@ -114,10 +142,10 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
             let v4 = Simd512u::loadu(sptr.add(LANES * 3));
 
             // Check all 4 masks
-            let mask1 = escaped_mask(v1);
-            let mask2 = escaped_mask(v2);
-            let mask3 = escaped_mask(v3);
-            let mask4 = escaped_mask(v4);
+            let mask1 = escaped_mask::<HTML>(v1);
+            let mask2 = escaped_mask::<HTML>(v2);
+            let mask3 = escaped_mask::<HTML>(v3);
+            let mask4 = escaped_mask::<HTML>(v4);
 
             // Fast path: single OR-combined mask test => 1 branch, lets the 4
             // independent load+mask dependency chains pipeline in parallel.
@@ -138,7 +166,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                     nb -= cn;
                     dptr = dptr.add(cn);
                     sptr = sptr.add(cn);
-                    escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
                     continue;
                 }
                 nb -= LANES;
@@ -152,7 +180,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                     nb -= cn;
                     dptr = dptr.add(cn);
                     sptr = sptr.add(cn);
-                    escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
                     continue;
                 }
                 nb -= LANES;
@@ -166,7 +194,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                     nb -= cn;
                     dptr = dptr.add(cn);
                     sptr = sptr.add(cn);
-                    escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
                     continue;
                 }
                 nb -= LANES;
@@ -180,7 +208,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                     nb -= cn;
                     dptr = dptr.add(cn);
                     sptr = sptr.add(cn);
-                    escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
                     continue;
                 }
                 nb -= LANES;
@@ -193,7 +221,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
         while nb >= LANES {
             let v = Simd512u::loadu(sptr);
             v.storeu(dptr);
-            let mask = escaped_mask(v);
+            let mask = escaped_mask::<HTML>(v);
 
             if mask.all_zero() {
                 nb -= LANES;
@@ -204,7 +232,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 nb -= cn;
                 dptr = dptr.add(cn);
                 sptr = sptr.add(cn);
-                escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
             }
         }
 
@@ -221,7 +249,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
             let k: __mmask64 = (1u64 << nb) - 1;
             let v = Simd512u(_mm512_maskz_loadu_epi8(k, sptr as *const i8));
             _mm512_mask_storeu_epi8(dptr as *mut i8, k, v.0);
-            let mask = escaped_mask(v).clear_high_bits(LANES - nb);
+            let mask = escaped_mask::<HTML>(v).clear_high_bits(LANES - nb);
 
             if mask.all_zero() {
                 dptr = dptr.add(nb);
@@ -231,12 +259,14 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 nb -= cn;
                 dptr = dptr.add(cn);
                 sptr = sptr.add(cn);
-                escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
             }
         }
 
-        *dptr = b'"';
-        dptr = dptr.add(1);
+        if !HTML {
+            *dptr = b'"';
+            dptr = dptr.add(1);
+        }
         dptr as usize - dstart as usize
     }
 }

@@ -1,0 +1,18 @@
+[package]
+name = "escape-simd"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+include = ["src/**/*.rs"]
+description = "Shared SIMD kernels for JSON and HTML string escaping."
+readme = "README.md"
+
+[features]
+default = []
+json = []
+html = []
+avx512 = []
+asan = []

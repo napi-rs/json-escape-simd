@@ -1,5 +1,7 @@
 use std::ops::{BitAnd, BitOr, BitOrAssign};
 
+#[cfg(feature = "html")]
+use crate::HTML_NEED_ESCAPED;
 use crate::simd::traits::BitMask;
 
 use super::{Mask, Simd, util::escape_unchecked};
@@ -101,7 +103,22 @@ impl BitOrAssign for Mask128 {
 }
 
 #[inline(always)]
-fn escaped_mask(v: Simd128u) -> u16 {
+#[cfg(feature = "html")]
+fn escaped_mask_html(v: &Simd128u) -> u16 {
+    // Portable fallback: a plain table lookup per byte, no shuffle trick.
+    let mut mask = 0u16;
+    for (i, &b) in v.0.iter().enumerate() {
+        mask |= (HTML_NEED_ESCAPED[b as usize] as u16) << i;
+    }
+    mask
+}
+
+#[inline(always)]
+fn escaped_mask<const HTML: bool>(v: Simd128u) -> u16 {
+    #[cfg(feature = "html")]
+    if HTML {
+        return escaped_mask_html(&v);
+    }
     let x1f = Simd128u::splat(0x1f); // 0x00 ~ 0x20
     let blash = Simd128u::splat(b'\\');
     let quote = Simd128u::splat(b'"');
@@ -109,7 +126,7 @@ fn escaped_mask(v: Simd128u) -> u16 {
     v.bitmask()
 }
 
-pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
+pub fn format_string<const HTML: bool>(value: &str, dst: &mut [u8]) -> usize {
     unsafe {
         let slice = value.as_bytes();
         let mut sptr = slice.as_ptr();
@@ -117,14 +134,16 @@ pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
         let dstart = dptr;
         let mut nb: usize = slice.len();
 
-        *dptr = b'"';
-        dptr = dptr.add(1);
+        if !HTML {
+            *dptr = b'"';
+            dptr = dptr.add(1);
+        }
 
         // Main loop: process LANES bytes at a time
         while nb >= LANES {
             let v = Simd128u::loadu(sptr);
             v.storeu(dptr);
-            let mask = escaped_mask(v);
+            let mask = escaped_mask::<HTML>(v);
 
             if mask == 0 {
                 nb -= LANES;
@@ -135,7 +154,7 @@ pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 nb -= cn;
                 dptr = dptr.add(cn);
                 sptr = sptr.add(cn);
-                escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
             }
         }
 
@@ -168,7 +187,7 @@ pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
             };
 
             v.storeu(dptr);
-            let mut mask = escaped_mask(v);
+            let mut mask = escaped_mask::<HTML>(v);
             // Clear high bits for partial vector
             mask &= (1u16 << nb) - 1;
 
@@ -180,12 +199,14 @@ pub fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 nb -= cn;
                 dptr = dptr.add(cn);
                 sptr = sptr.add(cn);
-                escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
             }
         }
 
-        *dptr = b'"';
-        dptr = dptr.add(1);
+        if !HTML {
+            *dptr = b'"';
+            dptr = dptr.add(1);
+        }
         dptr as usize - dstart as usize
     }
 }

@@ -1,60 +1,18 @@
-#[cfg(target_arch = "x86")]
-use std::arch::x86::*;
-#[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::*;
+use std::arch::aarch64::*;
 
-use std::ops::{BitAnd, BitOr, BitOrAssign};
-
-use super::{Mask, Simd, traits::BitMask, util::escape_unchecked};
+use super::{Mask, Simd, bits::NeonBits, traits::BitMask, util::escape_unchecked};
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use super::util::check_cross_page;
+#[cfg(feature = "html")]
+use super::util::{HTML_HI_NIBBLE_TAB, HTML_LO_NIBBLE_TAB};
 
 const LANES: usize = 16;
 const CHUNK: usize = LANES * 4;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
-pub struct Simd128u(__m128i);
-
-#[derive(Debug, Clone, Copy)]
-#[repr(transparent)]
-pub struct Mask128(__m128i);
-
-impl Mask for Mask128 {
-    type BitMask = u16;
-    type Element = u8;
-
-    #[inline(always)]
-    fn bitmask(self) -> Self::BitMask {
-        unsafe { _mm_movemask_epi8(self.0) as u16 }
-    }
-}
-
-impl BitAnd<Mask128> for Mask128 {
-    type Output = Self;
-
-    #[inline(always)]
-    fn bitand(self, rhs: Mask128) -> Self::Output {
-        unsafe { Mask128(_mm_and_si128(self.0, rhs.0)) }
-    }
-}
-
-impl BitOr<Mask128> for Mask128 {
-    type Output = Self;
-
-    #[inline(always)]
-    fn bitor(self, rhs: Mask128) -> Self::Output {
-        unsafe { Mask128(_mm_or_si128(self.0, rhs.0)) }
-    }
-}
-
-impl BitOrAssign<Mask128> for Mask128 {
-    #[inline(always)]
-    fn bitor_assign(&mut self, rhs: Mask128) {
-        self.0 = unsafe { _mm_or_si128(self.0, rhs.0) };
-    }
-}
+pub struct Simd128u(uint8x16_t);
 
 impl Simd for Simd128u {
     const LANES: usize = LANES;
@@ -63,45 +21,122 @@ impl Simd for Simd128u {
 
     #[inline(always)]
     unsafe fn loadu(ptr: *const u8) -> Self {
-        Simd128u(unsafe { _mm_loadu_si128(ptr as *const __m128i) })
+        unsafe { Self(vld1q_u8(ptr)) }
     }
 
     #[inline(always)]
     unsafe fn storeu(&self, ptr: *mut u8) {
-        unsafe { _mm_storeu_si128(ptr as *mut __m128i, self.0) }
+        unsafe { vst1q_u8(ptr, self.0) };
     }
 
     #[inline(always)]
-    fn eq(&self, rhs: &Self) -> Self::Mask {
-        Mask128(unsafe { _mm_cmpeq_epi8(self.0, rhs.0) })
+    fn eq(&self, lhs: &Self) -> Self::Mask {
+        unsafe { Mask128(vceqq_u8(self.0, lhs.0)) }
     }
 
     #[inline(always)]
     fn splat(ch: u8) -> Self {
-        Simd128u(unsafe { _mm_set1_epi8(ch as i8) })
+        unsafe { Self(vdupq_n_u8(ch)) }
     }
 
+    // less or equal
     #[inline(always)]
-    fn le(&self, rhs: &Self) -> Self::Mask {
+    fn le(&self, lhs: &Self) -> Self::Mask {
+        unsafe { Mask128(vcleq_u8(self.0, lhs.0)) }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub struct Mask128(pub(crate) uint8x16_t);
+
+impl Mask for Mask128 {
+    type BitMask = NeonBits;
+    type Element = u8;
+
+    /// Convert Mask Vector 0x00-ff-ff to Bits 0b0000-1111-1111
+    /// Reference: https://community.arm.com/arm-community-blogs/b/infrastructure-solutions-blog/posts/porting-x86-vector-bitmask-optimizations-to-arm-neon
+    #[inline(always)]
+    fn bitmask(self) -> Self::BitMask {
         unsafe {
-            let max = _mm_max_epu8(self.0, rhs.0);
-            let eq = _mm_cmpeq_epi8(max, rhs.0);
-            Mask128(eq)
+            let v16 = vreinterpretq_u16_u8(self.0);
+            let sr4 = vshrn_n_u16(v16, 4);
+            let v64 = vreinterpret_u64_u8(sr4);
+            NeonBits::new(vget_lane_u64(v64, 0))
         }
     }
 }
 
-#[inline(always)]
-fn escaped_mask(v: Simd128u) -> u16 {
-    let x1f = Simd128u::splat(0x1f); // 0x00 ~ 0x20
-    let blash = Simd128u::splat(b'\\');
-    let quote = Simd128u::splat(b'"');
-    let v = v.le(&x1f) | v.eq(&blash) | v.eq(&quote);
-    v.bitmask()
+// Bitwise AND for Mask128
+impl std::ops::BitAnd<Mask128> for Mask128 {
+    type Output = Self;
+
+    #[inline(always)]
+    fn bitand(self, rhs: Mask128) -> Self::Output {
+        unsafe { Self(vandq_u8(self.0, rhs.0)) }
+    }
 }
 
-#[target_feature(enable = "sse2")]
-pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
+// Bitwise OR for Mask128
+impl std::ops::BitOr<Mask128> for Mask128 {
+    type Output = Self;
+
+    #[inline(always)]
+    fn bitor(self, rhs: Mask128) -> Self::Output {
+        unsafe { Self(vorrq_u8(self.0, rhs.0)) }
+    }
+}
+
+// Bitwise OR assignment for Mask128
+impl std::ops::BitOrAssign<Mask128> for Mask128 {
+    #[inline(always)]
+    fn bitor_assign(&mut self, rhs: Mask128) {
+        unsafe {
+            self.0 = vorrq_u8(self.0, rhs.0);
+        }
+    }
+}
+
+/// simdjson-style two-shuffle HTML classifier: look up the byte's low and high
+/// nibbles in the shared tables and test whether they share a bit. Indices are
+/// masked to 0..=15, so both `vqtbl1q_u8` lookups are always in range.
+#[cfg(feature = "html")]
+#[inline(always)]
+fn escaped_mask_vec_html(v: Simd128u) -> Mask128 {
+    unsafe {
+        let lo_tab: uint8x16_t = vld1q_u8(HTML_LO_NIBBLE_TAB.as_ptr());
+        let hi_tab: uint8x16_t = vld1q_u8(HTML_HI_NIBBLE_TAB.as_ptr());
+        let nibble = vdupq_n_u8(0x0f);
+        let lo_idx = vandq_u8(v.0, nibble);
+        let hi_idx = vandq_u8(vshrq_n_u8::<4>(v.0), nibble);
+        let lo = vqtbl1q_u8(lo_tab, lo_idx);
+        let hi = vqtbl1q_u8(hi_tab, hi_idx);
+        // per-lane (lo & hi) != 0 -> 0xff
+        Mask128(vtstq_u8(lo, hi))
+    }
+}
+
+/// Returns the vector-domain escape mask (Mask128) without extracting to bitmask.
+/// This allows combining multiple masks with SIMD OR before a single bitmask extraction.
+#[inline(always)]
+fn escaped_mask_vec<const HTML: bool>(v: Simd128u) -> Mask128 {
+    #[cfg(feature = "html")]
+    if HTML {
+        return escaped_mask_vec_html(v);
+    }
+    let x1f = Simd128u::splat(0x1f); // 0x00 ~ 0x1f
+    let blash = Simd128u::splat(b'\\');
+    let quote = Simd128u::splat(b'"');
+    v.le(&x1f) | v.eq(&blash) | v.eq(&quote)
+}
+
+#[inline(always)]
+fn escaped_mask<const HTML: bool>(v: Simd128u) -> NeonBits {
+    escaped_mask_vec::<HTML>(v).bitmask()
+}
+
+#[target_feature(enable = "neon")]
+pub unsafe fn format_string<const HTML: bool>(value: &str, dst: &mut [u8]) -> usize {
     unsafe {
         let slice = value.as_bytes();
         let mut sptr = slice.as_ptr();
@@ -109,8 +144,10 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
         let dstart = dptr;
         let mut nb: usize = slice.len();
 
-        *dptr = b'"';
-        dptr = dptr.add(1);
+        if !HTML {
+            *dptr = b'"';
+            dptr = dptr.add(1);
+        }
 
         // Process CHUNK (4 * LANES = 64 bytes) at a time
         while nb >= CHUNK {
@@ -120,14 +157,14 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
             let v3 = Simd128u::loadu(sptr.add(LANES * 2));
             let v4 = Simd128u::loadu(sptr.add(LANES * 3));
 
-            // Check all 4 masks
-            let mask1 = escaped_mask(v1);
-            let mask2 = escaped_mask(v2);
-            let mask3 = escaped_mask(v3);
-            let mask4 = escaped_mask(v4);
+            // Compute escape masks in vector domain (all independent, can pipeline)
+            let m1 = escaped_mask_vec::<HTML>(v1);
+            let m2 = escaped_mask_vec::<HTML>(v2);
+            let m3 = escaped_mask_vec::<HTML>(v3);
+            let m4 = escaped_mask_vec::<HTML>(v4);
 
-            // Fast path: if all vectors are clean, write the entire chunk
-            if mask1.all_zero() && mask2.all_zero() && mask3.all_zero() && mask4.all_zero() {
+            // Combined check: single bitmask extraction instead of four
+            if (m1 | m2 | m3 | m4).bitmask().all_zero() {
                 v1.storeu(dptr);
                 v2.storeu(dptr.add(LANES));
                 v3.storeu(dptr.add(LANES * 2));
@@ -136,57 +173,57 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 dptr = dptr.add(CHUNK);
                 sptr = sptr.add(CHUNK);
             } else {
-                // Slow path: handle escape character
-                // Process v1
+                // Slow path: extract individual bitmasks lazily
+                let mask1 = m1.bitmask();
                 v1.storeu(dptr);
                 if !mask1.all_zero() {
                     let cn = mask1.first_offset();
                     nb -= cn;
                     dptr = dptr.add(cn);
                     sptr = sptr.add(cn);
-                    escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
                     continue;
                 }
                 nb -= LANES;
                 dptr = dptr.add(LANES);
                 sptr = sptr.add(LANES);
 
-                // Process v2
+                let mask2 = m2.bitmask();
                 v2.storeu(dptr);
                 if !mask2.all_zero() {
                     let cn = mask2.first_offset();
                     nb -= cn;
                     dptr = dptr.add(cn);
                     sptr = sptr.add(cn);
-                    escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
                     continue;
                 }
                 nb -= LANES;
                 dptr = dptr.add(LANES);
                 sptr = sptr.add(LANES);
 
-                // Process v3
+                let mask3 = m3.bitmask();
                 v3.storeu(dptr);
                 if !mask3.all_zero() {
                     let cn = mask3.first_offset();
                     nb -= cn;
                     dptr = dptr.add(cn);
                     sptr = sptr.add(cn);
-                    escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
                     continue;
                 }
                 nb -= LANES;
                 dptr = dptr.add(LANES);
                 sptr = sptr.add(LANES);
 
-                // Process v4
+                let mask4 = m4.bitmask();
                 v4.storeu(dptr);
                 if !mask4.all_zero() {
                     let cn = mask4.first_offset();
                     nb -= cn;
                     dptr = dptr.add(cn);
                     sptr = sptr.add(cn);
-                    escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                    escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
                     continue;
                 }
                 nb -= LANES;
@@ -199,7 +236,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
         while nb >= LANES {
             let v = Simd128u::loadu(sptr);
             v.storeu(dptr);
-            let mask = escaped_mask(v);
+            let mask = escaped_mask::<HTML>(v);
 
             if mask.all_zero() {
                 nb -= LANES;
@@ -210,7 +247,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 nb -= cn;
                 dptr = dptr.add(cn);
                 sptr = sptr.add(cn);
-                escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
             }
         }
 
@@ -243,7 +280,7 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
             };
 
             v.storeu(dptr);
-            let mask = escaped_mask(v).clear_high_bits(LANES - nb);
+            let mask = escaped_mask::<HTML>(v).clear_high_bits(LANES - nb);
 
             if mask.all_zero() {
                 dptr = dptr.add(nb);
@@ -253,12 +290,14 @@ pub unsafe fn format_string(value: &str, dst: &mut [u8]) -> usize {
                 nb -= cn;
                 dptr = dptr.add(cn);
                 sptr = sptr.add(cn);
-                escape_unchecked(&mut sptr, &mut nb, &mut dptr);
+                escape_unchecked::<HTML>(&mut sptr, &mut nb, &mut dptr);
             }
         }
 
-        *dptr = b'"';
-        dptr = dptr.add(1);
+        if !HTML {
+            *dptr = b'"';
+            dptr = dptr.add(1);
+        }
         dptr as usize - dstart as usize
     }
 }

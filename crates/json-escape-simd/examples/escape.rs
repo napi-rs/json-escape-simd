@@ -11,7 +11,9 @@ fn main() {
 }
 
 fn get_rxjs_sources() -> Vec<String> {
-    let dir = glob::glob("node_modules/rxjs/src/**/*.ts").unwrap();
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let pattern = root.join("node_modules/rxjs/src/**/*.ts");
+    let dir = glob::glob(&pattern.to_string_lossy().replace('\\', "/")).unwrap();
     let mut sources = Vec::new();
     for entry in dir {
         sources.push(fs::read_to_string(entry.unwrap()).unwrap());
