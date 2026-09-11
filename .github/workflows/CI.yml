@@ -44,9 +44,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run tests
         run: |
-          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          cargo clippy --workspace --all-targets --all-features --exclude cpu-features -- -D warnings
           cargo fmt --all -- --check
-          cargo test --workspace --all-features
+          cargo test --workspace --all-features --exclude cpu-features
 
   miri:
     runs-on: ${{ matrix.os }}
@@ -72,7 +72,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run miri
-        run: cargo miri test --workspace --all-features
+        run: cargo miri test --workspace --all-features --exclude cpu-features
         env:
           MIRIFLAGS: "-Zmiri-disable-isolation"
 

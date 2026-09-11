@@ -5,6 +5,11 @@ members = [
     "crates/html-escape-simd",
     "cpu-features",
 ]
+default-members = [
+    "crates/escape-simd",
+    "crates/json-escape-simd",
+    "crates/html-escape-simd",
+]
 resolver = "3"
 
 [workspace.package]
