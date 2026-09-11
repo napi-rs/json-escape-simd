@@ -44,9 +44,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run tests
         run: |
-          cargo clippy --all-targets --all-features -- -D warnings
+          cargo clippy --workspace --all-targets --all-features --exclude cpu-features -- -D warnings
           cargo fmt --all -- --check
-          cargo test
+          cargo test --workspace --all-features --exclude cpu-features
 
   miri:
     runs-on: ${{ matrix.os }}
@@ -72,7 +72,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run miri
-        run: cargo miri test
+        run: cargo miri test --workspace --all-features --exclude cpu-features
         env:
           MIRIFLAGS: "-Zmiri-disable-isolation"
 
@@ -114,7 +114,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Test with ASAN
-        run: cargo test --tests --target x86_64-unknown-linux-gnu --features asan
+        run: cargo test --tests --workspace --exclude cpu-features --target x86_64-unknown-linux-gnu --features asan
         env:
           RUST_TARGET: x86_64-unknown-linux-gnu
           RUST_BACKTRACE: 1
@@ -163,7 +163,7 @@ jobs:
             $env:PATH = "$($asanDllPath.DirectoryName);$env:PATH"
             Write-Host "Found ASAN DLL at: $($asanDllPath.FullName)"
           }
-          cargo test --tests --target x86_64-pc-windows-msvc
+          cargo test --tests --workspace --exclude cpu-features --target x86_64-pc-windows-msvc --features asan
         env:
           RUSTFLAGS: -Zsanitizer=address
           RUST_BACKTRACE: 1
@@ -212,7 +212,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Run benchmarks
-        run: cargo bench
+        run: cargo bench --workspace --exclude cpu-features
         env:
           RUSTFLAGS: "-C target-cpu=native"
 

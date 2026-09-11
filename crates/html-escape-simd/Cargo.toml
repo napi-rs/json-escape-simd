@@ -1,0 +1,30 @@
+[package]
+name = "html-escape-simd"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+include = ["src/**/*.rs"]
+description = "Optimized SIMD routines for escaping HTML strings."
+readme = "README.md"
+
+[features]
+default = []
+codspeed = ["criterion2/codspeed"]
+avx512 = ["escape-simd/avx512"]
+asan = ["escape-simd/asan"]
+
+[[bench]]
+name = "escape"
+harness = false
+
+[dependencies]
+escape-simd = { workspace = true, features = ["html"] }
+
+[dev-dependencies]
+criterion2 = { workspace = true }
+glob = { workspace = true }
+rand = { workspace = true }
+v_htmlescape = { workspace = true }

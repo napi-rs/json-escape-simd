@@ -1,0 +1,38 @@
+[package]
+name = "json-escape-simd"
+version = "3.1.2"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+include = ["src/**/*.rs"]
+description = "Optimized SIMD routines for escaping JSON strings."
+readme = "README.md"
+
+[features]
+default = []
+codspeed = ["criterion2/codspeed"]
+avx512 = ["escape-simd/avx512"]
+asan = ["escape-simd/asan"]
+
+[[example]]
+name = "escape"
+path = "examples/escape.rs"
+
+[[bench]]
+name = "escape"
+harness = false
+
+[dependencies]
+escape-simd = { workspace = true, features = ["json"] }
+
+[dev-dependencies]
+criterion2 = { workspace = true }
+glob = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+v_jsonescape = { workspace = true }
+json-escape = { workspace = true }
+sonic-rs = { workspace = true }

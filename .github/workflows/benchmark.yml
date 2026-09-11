@@ -44,7 +44,7 @@ jobs:
           tool: cargo-codspeed
 
       - name: Build benchmark
-        run: cargo codspeed build --features codspeed
+        run: cargo codspeed build -p json-escape-simd -p html-escape-simd --features codspeed
         env:
           # Cap the ISA at the AVX2 baseline. `target-cpu=native` makes LLVM
           # emit AVX-512-class instructions unconditionally based on the

@@ -9,8 +9,17 @@ use json_escape_simd::escape;
 #[cfg(not(feature = "codspeed"))]
 mod generic;
 
+fn workspace_root() -> std::path::PathBuf {
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn glob_utf8(pattern: &str) -> glob::Paths {
+    let pat = workspace_root().join(pattern);
+    glob::glob(&pat.to_string_lossy().replace('\\', "/")).unwrap()
+}
+
 fn get_rxjs_sources() -> Vec<String> {
-    let rxjs_paths = glob::glob("node_modules/rxjs/src/**/*.ts").unwrap();
+    let rxjs_paths = glob_utf8("node_modules/rxjs/src/**/*.ts");
     let mut sources = Vec::new();
     for entry in rxjs_paths {
         let p = entry.unwrap();
@@ -22,11 +31,11 @@ fn get_rxjs_sources() -> Vec<String> {
 }
 
 fn get_affine_sources() -> Vec<String> {
-    let ts_paths = glob::glob("fixtures/**/*.ts").unwrap();
-    let tsx_paths = glob::glob("fixtures/**/*.tsx").unwrap();
-    let js_paths = glob::glob("fixtures/**/*.js").unwrap();
-    let mjs_paths = glob::glob("fixtures/**/*.mjs").unwrap();
-    let cjs_paths = glob::glob("fixtures/**/*.cjs").unwrap();
+    let ts_paths = glob_utf8("fixtures/**/*.ts");
+    let tsx_paths = glob_utf8("fixtures/**/*.tsx");
+    let js_paths = glob_utf8("fixtures/**/*.js");
+    let mjs_paths = glob_utf8("fixtures/**/*.mjs");
+    let cjs_paths = glob_utf8("fixtures/**/*.cjs");
     let mut sources = Vec::new();
     for entry in ts_paths
         .chain(tsx_paths)

@@ -1,39 +1,33 @@
 [workspace]
-members = ["cpu-features"]
+members = [
+    "crates/escape-simd",
+    "crates/json-escape-simd",
+    "crates/html-escape-simd",
+    "cpu-features",
+]
+default-members = [
+    "crates/escape-simd",
+    "crates/json-escape-simd",
+    "crates/html-escape-simd",
+]
+resolver = "3"
 
-[package]
-name = "json-escape-simd"
-version = "3.1.1"
+[workspace.package]
 edition = "2024"
-rust-version = "1.85.0"
-include = ["src/**/*.rs"]
-description = "Optimized SIMD routines for escaping JSON strings."
 license = "MIT"
-homepage = "https://github.com/napi-rs/json-escape-simd"
+rust-version = "1.85.0"
 repository = "https://github.com/napi-rs/json-escape-simd"
+homepage = "https://github.com/napi-rs/json-escape-simd"
 
-[[example]]
-name = "escape"
-path = "examples/escape.rs"
-
-[features]
-codspeed = ["criterion2/codspeed"]
-avx512 = []
-asan = [] # for ASAN
-
-[[bench]]
-name = "escape"
-harness = false
-
-[dependencies]
-
-[dev-dependencies]
+[workspace.dependencies]
+escape-simd = { version = "0.1.0", path = "crates/escape-simd" }
 criterion2 = "3"
 glob = "0.3"
 rand = "0.10"
 serde = "1"
 serde_json = "1"
 v_jsonescape = "0.9"
+v_htmlescape = "0.17"
 json-escape = "0.3.0"
 sonic-rs = "0.5"
 
