@@ -12,7 +12,7 @@ The published **crate name** `json-escape-simd` is unchanged. This repository is
 
 ![Crates.io Version](https://img.shields.io/crates/v/json-escape-simd)
 ![docs.rs](https://img.shields.io/docsrs/json-escape-simd)
-[![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/napi-rs/json-escape-simd)
+[![CodSpeed Badge](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://codspeed.io/napi-rs/escape-simd)
 
 JSON implementation is from [sonic-rs](https://github.com/cloudwego/sonic-rs); we only take the string escaping part to avoid the abstraction overhead. HTML uses the same kernels with a nibble-lookup classifier.
 

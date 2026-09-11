@@ -13,93 +13,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Implementation now lives in the shared `escape-simd` crate. Public JSON API (`escape`, `escape_into`) is unchanged.
 
-## [3.1.1](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.1.0...json-escape-simd-v3.1.1) - 2026-07-09
+## [3.1.1](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v3.1.0...json-escape-simd-v3.1.1) - 2026-07-09
 
 ### Fixed
 
-- *(simd)* correct big-endian bitmask in scalar v128 fallback ([#88](https://github.com/napi-rs/json-escape-simd/pull/88))
+- *(simd)* correct big-endian bitmask in scalar v128 fallback ([#88](https://github.com/napi-rs/escape-simd/pull/88))
 
-## [3.1.0](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.0.2...json-escape-simd-v3.1.0) - 2026-07-01
+## [3.1.0](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v3.0.2...json-escape-simd-v3.1.0) - 2026-07-01
 
 ### Added
 
-- *(avx512)* working, optimized AVX-512 escape kernel + escape_into overflow fix ([#86](https://github.com/napi-rs/json-escape-simd/pull/86))
+- *(avx512)* working, optimized AVX-512 escape kernel + escape_into overflow fix ([#86](https://github.com/napi-rs/escape-simd/pull/86))
 
 ### Other
 
-- *(deps)* lock file maintenance ([#85](https://github.com/napi-rs/json-escape-simd/pull/85))
-- *(deps)* lock file maintenance ([#79](https://github.com/napi-rs/json-escape-simd/pull/79))
-- *(deps)* update rust crate v_jsonescape to 0.9 ([#74](https://github.com/napi-rs/json-escape-simd/pull/74))
+- *(deps)* lock file maintenance ([#85](https://github.com/napi-rs/escape-simd/pull/85))
+- *(deps)* lock file maintenance ([#79](https://github.com/napi-rs/escape-simd/pull/79))
+- *(deps)* update rust crate v_jsonescape to 0.9 ([#74](https://github.com/napi-rs/escape-simd/pull/74))
 
-## [3.0.2](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.0.1...json-escape-simd-v3.0.2) - 2026-04-14
-
-### Other
-
-- *(deps)* update rust crate rand to v0.10.1 [security] ([#68](https://github.com/napi-rs/json-escape-simd/pull/68))
-- *(deps)* lock file maintenance ([#67](https://github.com/napi-rs/json-escape-simd/pull/67))
-- *(deps)* lock file maintenance ([#63](https://github.com/napi-rs/json-escape-simd/pull/63))
-- *(neon)* combine 4 escape masks in SIMD domain before GPR extraction ([#61](https://github.com/napi-rs/json-escape-simd/pull/61))
-- *(deps)* update rust crate rand to 0.10 ([#58](https://github.com/napi-rs/json-escape-simd/pull/58))
-
-## [3.0.1](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v3.0.0...json-escape-simd-v3.0.1) - 2025-10-14
+## [3.0.2](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v3.0.1...json-escape-simd-v3.0.2) - 2026-04-14
 
 ### Other
 
-- hide avx512 behind feature flag ([#39](https://github.com/napi-rs/json-escape-simd/pull/39))
+- *(deps)* update rust crate rand to v0.10.1 [security] ([#68](https://github.com/napi-rs/escape-simd/pull/68))
+- *(deps)* lock file maintenance ([#67](https://github.com/napi-rs/escape-simd/pull/67))
+- *(deps)* lock file maintenance ([#63](https://github.com/napi-rs/escape-simd/pull/63))
+- *(neon)* combine 4 escape masks in SIMD domain before GPR extraction ([#61](https://github.com/napi-rs/escape-simd/pull/61))
+- *(deps)* update rust crate rand to 0.10 ([#58](https://github.com/napi-rs/escape-simd/pull/58))
 
-## [3.0.0](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v2.0.0...json-escape-simd-v3.0.0) - 2025-10-13
+## [3.0.1](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v3.0.0...json-escape-simd-v3.0.1) - 2025-10-14
 
 ### Other
 
-- [**breaking**] do not reserve memory in escape_into ([#36](https://github.com/napi-rs/json-escape-simd/pull/36))
+- hide avx512 behind feature flag ([#39](https://github.com/napi-rs/escape-simd/pull/39))
 
-## [2.0.0](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v1.1.0...json-escape-simd-v2.0.0) - 2025-10-13
+## [3.0.0](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v2.0.0...json-escape-simd-v3.0.0) - 2025-10-13
+
+### Other
+
+- [**breaking**] do not reserve memory in escape_into ([#36](https://github.com/napi-rs/escape-simd/pull/36))
+
+## [2.0.0](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v1.1.0...json-escape-simd-v2.0.0) - 2025-10-13
 
 ### Fixed
 
-- tests on avx512 host ([#35](https://github.com/napi-rs/json-escape-simd/pull/35))
+- tests on avx512 host ([#35](https://github.com/napi-rs/escape-simd/pull/35))
 
 ### Other
 
-- run miri on more platform ([#34](https://github.com/napi-rs/json-escape-simd/pull/34))
-- cleanup codes ([#33](https://github.com/napi-rs/json-escape-simd/pull/33))
-- split impls into arch ([#32](https://github.com/napi-rs/json-escape-simd/pull/32))
-- runtime detect simd features ([#29](https://github.com/napi-rs/json-escape-simd/pull/29))
-- remove useless deps ([#28](https://github.com/napi-rs/json-escape-simd/pull/28))
+- run miri on more platform ([#34](https://github.com/napi-rs/escape-simd/pull/34))
+- cleanup codes ([#33](https://github.com/napi-rs/escape-simd/pull/33))
+- split impls into arch ([#32](https://github.com/napi-rs/escape-simd/pull/32))
+- runtime detect simd features ([#29](https://github.com/napi-rs/escape-simd/pull/29))
+- remove useless deps ([#28](https://github.com/napi-rs/escape-simd/pull/28))
 - update benchmark result
-- borrow the sonic-rs string escape implementation ([#27](https://github.com/napi-rs/json-escape-simd/pull/27))
-- *(deps)* update rust crate json-escape to 0.3.0 ([#24](https://github.com/napi-rs/json-escape-simd/pull/24))
-- *(deps)* update rust crate json-escape to 0.2.0 ([#23](https://github.com/napi-rs/json-escape-simd/pull/23))
-- omit other crates in codspeed ([#22](https://github.com/napi-rs/json-escape-simd/pull/22))
-- add benchmark ([#20](https://github.com/napi-rs/json-escape-simd/pull/20))
+- borrow the sonic-rs string escape implementation ([#27](https://github.com/napi-rs/escape-simd/pull/27))
+- *(deps)* update rust crate json-escape to 0.3.0 ([#24](https://github.com/napi-rs/escape-simd/pull/24))
+- *(deps)* update rust crate json-escape to 0.2.0 ([#23](https://github.com/napi-rs/escape-simd/pull/23))
+- omit other crates in codspeed ([#22](https://github.com/napi-rs/escape-simd/pull/22))
+- add benchmark ([#20](https://github.com/napi-rs/escape-simd/pull/20))
 
-## [1.1.0](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v1.0.4...json-escape-simd-v1.1.0) - 2025-09-23
+## [1.1.0](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v1.0.4...json-escape-simd-v1.1.0) - 2025-09-23
 
 ### Added
 
-- add escape_into ([#18](https://github.com/napi-rs/json-escape-simd/pull/18))
+- add escape_into ([#18](https://github.com/napi-rs/escape-simd/pull/18))
 
-## [1.0.4](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v1.0.3...json-escape-simd-v1.0.4) - 2025-09-23
-
-### Other
-
-- reduce alignment overhead for small inputs ([#16](https://github.com/napi-rs/json-escape-simd/pull/16))
-
-## [1.0.3](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v1.0.2...json-escape-simd-v1.0.3) - 2025-09-23
+## [1.0.4](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v1.0.3...json-escape-simd-v1.0.4) - 2025-09-23
 
 ### Other
 
-- reduce allocation on x86 ([#13](https://github.com/napi-rs/json-escape-simd/pull/13))
+- reduce alignment overhead for small inputs ([#16](https://github.com/napi-rs/escape-simd/pull/16))
 
-## [1.0.2](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v1.0.1...json-escape-simd-v1.0.2) - 2025-09-23
+## [1.0.3](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v1.0.2...json-escape-simd-v1.0.3) - 2025-09-23
+
+### Other
+
+- reduce allocation on x86 ([#13](https://github.com/napi-rs/escape-simd/pull/13))
+
+## [1.0.2](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v1.0.1...json-escape-simd-v1.0.2) - 2025-09-23
 
 ### Other
 
 - code cleanup
 - cleanup codes
 
-## [1.0.1](https://github.com/napi-rs/json-escape-simd/compare/json-escape-simd-v1.0.0...json-escape-simd-v1.0.1) - 2025-09-23
+## [1.0.1](https://github.com/napi-rs/escape-simd/compare/json-escape-simd-v1.0.0...json-escape-simd-v1.0.1) - 2025-09-23
 
 ### Other
 
-- use oxc_sourcemap version of escape_generic ([#9](https://github.com/napi-rs/json-escape-simd/pull/9))
+- use oxc_sourcemap version of escape_generic ([#9](https://github.com/napi-rs/escape-simd/pull/9))

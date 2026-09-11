@@ -16,8 +16,8 @@ resolver = "3"
 edition = "2024"
 license = "MIT"
 rust-version = "1.85.0"
-repository = "https://github.com/napi-rs/json-escape-simd"
-homepage = "https://github.com/napi-rs/json-escape-simd"
+repository = "https://github.com/napi-rs/escape-simd"
+homepage = "https://github.com/napi-rs/escape-simd"
 
 [workspace.dependencies]
 escape-simd = { version = "0.1.0", path = "crates/escape-simd" }
