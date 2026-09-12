@@ -2,11 +2,11 @@
 
 SIMD string-escaping kernels shared by JSON and HTML.
 
-| Crate | crates.io | Role |
+| Crate | Version | Role |
 | --- | --- | --- |
-| [`escape-simd`](crates/escape-simd) | new | shared kernels (feature-gated `json` / `html`) |
-| [`json-escape-simd`](crates/json-escape-simd) | existing, patch 3.1.2 | JSON facade (`escape`, `escape_into`) |
-| [`html-escape-simd`](crates/html-escape-simd) | new | HTML facade (`escape_html`, `escape_html_into`) |
+| [`escape-simd`](crates/escape-simd) | [![crates.io](https://img.shields.io/crates/v/escape-simd)](https://crates.io/crates/escape-simd) | shared kernels (feature-gated `json` / `html`) |
+| [`json-escape-simd`](crates/json-escape-simd) | [![crates.io](https://img.shields.io/crates/v/json-escape-simd)](https://crates.io/crates/json-escape-simd) | JSON facade (`escape`, `escape_into`) |
+| [`html-escape-simd`](crates/html-escape-simd) | [![crates.io](https://img.shields.io/crates/v/html-escape-simd)](https://crates.io/crates/html-escape-simd) | HTML facade (`escape_html`, `escape_html_into`) |
 
 The published **crate name** `json-escape-simd` is unchanged. This repository is the workspace that contains it.
 
